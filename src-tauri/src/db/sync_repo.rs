@@ -55,7 +55,14 @@ pub fn dirty_count(conn: &Connection) -> AppResult<i64> {
     for t in ["folders", "tags", "prompts", "sites"] {
         let n: i64 = conn
             .query_row(
-                &format!("SELECT COUNT(*) FROM {t} WHERE dirty = 1"),
+                &format!(
+                    "SELECT COUNT(*) FROM {t} WHERE dirty = 1{}",
+                    if t == "prompts" {
+                        " AND rich_content IS NULL"
+                    } else {
+                        ""
+                    }
+                ),
                 [],
                 |r| r.get(0),
             )
@@ -191,7 +198,7 @@ pub fn collect_dirty(conn: &Connection) -> AppResult<Vec<Change>> {
         let mut stmt = conn
             .prepare(
                 "SELECT id, uuid, title, content, is_favorite, is_pinned, created_at, \
-                 updated_at, deleted_at, folder_id FROM prompts WHERE dirty = 1",
+                 updated_at, deleted_at, folder_id FROM prompts WHERE dirty = 1 AND rich_content IS NULL",
             )
             .map_err(dberr)?;
         let rows = stmt
@@ -501,6 +508,18 @@ fn apply_prompt(conn: &mut Connection, ch: &Change) -> AppResult<bool> {
     let d: PromptData = serde_json::from_value(ch.data.clone())
         .map_err(|e| AppError::Internal(format!("prompt data: {e}")))?;
     let target = find_target(conn, "prompts", &ch.uuid, None)?;
+    if let Some((id, _, _, _)) = &target {
+        let local: bool = conn
+            .query_row(
+                "SELECT rich_content IS NOT NULL FROM prompts WHERE id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .map_err(dberr)?;
+        if local {
+            return Ok(false);
+        }
+    }
     if !decide_write(target.as_ref().map(|t| (t.1, t.2)), ch.updated_at) {
         return Ok(false);
     }
@@ -825,6 +844,7 @@ mod tests {
         prompts::create(
             &mut c,
             PromptDraft {
+                rich_content: None,
                 title: "p".into(),
                 content: "b".into(),
                 folder_id: Some(f),

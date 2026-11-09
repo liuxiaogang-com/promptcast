@@ -1,6 +1,6 @@
 [package]
 name = "prompt-manager"
-version = "0.0.11"
+version = "0.1.0"
 description = "Prompt Hub — cross-platform prompt manager with global hotkey injection."
 authors = ["xiao"]
 edition = "2021"
@@ -27,6 +27,7 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 parking_lot = "0.12"
 uuid = { version = "1", features = ["v4"] }
 arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 enigo = "0.2"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking", "json"] }
 scraper = "0.20"

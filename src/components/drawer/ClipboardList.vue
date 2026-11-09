@@ -6,18 +6,21 @@
 -->
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
-import { Trash2, ArrowRight } from "lucide-vue-next";
+import LocalImage from "../LocalImage.vue";
+import { Trash2, ArrowRight, Star, Save } from "lucide-vue-next";
 import type { ClipEntry } from "../../types/clipboard";
 import { snippet, relativeTime } from "../../utils/format";
 
 export default defineComponent({
   name: "ClipboardList",
-  components: { Trash2, ArrowRight },
+  components: { LocalImage, Trash2, ArrowRight, Star, Save },
   props: {
     entries: { type: Array as PropType<ClipEntry[]>, required: true },
     selectedId: { type: Number as PropType<number | null>, default: null },
   },
   emits: {
+    save: (_id: number) => true,
+    favorite: (_id: number) => true,
     inject: (_id: number) => true,
     delete: (_id: number) => true,
     bulkDelete: (_ids: number[]) => true,
@@ -27,6 +30,7 @@ export default defineComponent({
   data() {
     return { checked: [] as number[] };
   },
+  computed: { textOnly(): boolean { return !this.entries.some((c) => this.checked.includes(c.id) && c.image_id); } },
   watch: {
     selectedId(id: number | null) {
       if (id == null) return;
@@ -68,8 +72,8 @@ export default defineComponent({
       <span class="cnt">已选 {{ checked.length }}</span>
       <button type="button" class="tbtn" @click="clearChecked">取消</button>
       <span class="spacer" />
-      <button type="button" class="tbtn" @click="bulkPaste">合并粘贴</button>
-      <button type="button" class="tbtn" @click="bulkCopy">批量复制</button>
+      <button v-if="textOnly" type="button" class="tbtn" @click="bulkPaste">合并粘贴</button>
+      <button v-if="textOnly" type="button" class="tbtn" @click="bulkCopy">批量复制</button>
       <button type="button" class="tbtn danger" @click="bulkDelete">删除</button>
     </div>
 
@@ -87,10 +91,13 @@ export default defineComponent({
           title="多选"
         />
         <div class="main">
-          <div class="text">{{ preview(c) }}</div>
-          <div class="meta">{{ time(c) }} · {{ c.char_count }} 字</div>
+          <LocalImage v-if="c.image_id" :id="c.image_id" />
+          <div v-else class="text">{{ preview(c) }}</div>
+          <div class="meta">{{ time(c) }} · {{ c.image_id ? "图片 · 仅本机" : `${c.char_count} 字` }}{{ c.saved_prompt_id ? " · 已保存" : "" }}</div>
         </div>
         <div class="actions">
+          <button class="ico-btn" @click.stop="$emit('save', c.id)" :title="c.saved_prompt_id ? '打开已保存内容' : '长期保存'"><Save :size="14" /></button>
+          <button class="ico-btn" @click.stop="$emit('favorite', c.id)" title="保存并收藏"><Star :size="14" /></button>
           <button
             type="button"
             class="ico-btn hover-only"

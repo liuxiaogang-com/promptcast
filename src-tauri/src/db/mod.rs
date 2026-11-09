@@ -4,8 +4,10 @@
 // MVP 数据规模 <100，单连接足够；后续若需要并发可换 r2d2 池。
 pub mod clipboard;
 pub mod folders;
+pub mod images;
 pub mod migrations;
 pub mod prompts;
+pub mod rich;
 pub mod schema;
 pub mod settings;
 pub mod sites;

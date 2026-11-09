@@ -8,7 +8,6 @@ import { promptsGet } from "../api/prompts";
 import { ensureBackendReady } from "../api";
 import { foldersList } from "../api/folders";
 import { tagsList } from "../api/tags";
-import { injectPaste, injectCopyOnly } from "../api/inject";
 import { promptsRecordUse } from "../api/prompts";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { Prompt } from "../types/prompt";
@@ -16,6 +15,8 @@ import type { Folder } from "../types/folder";
 import type { Tag } from "../types/tag";
 import { relativeTime } from "../utils/format";
 
+import RichEditor from "../components/RichEditor.vue";
+import { contentCopy } from "../api/media";
 import MarkdownView from "../components/preview/MarkdownView.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
 import {
@@ -33,7 +34,7 @@ import { log } from "../utils/logger";
 
 export default defineComponent({
   name: "PreviewView",
-  components: { MarkdownView, BaseToast, Eye, FolderIcon, Star, Pin, Copy, ArrowRight },
+  components: { RichEditor, MarkdownView, BaseToast, Eye, FolderIcon, Star, Pin, Copy, ArrowRight },
   data() {
     return {
       prompt: null as Prompt | null,
@@ -98,13 +99,13 @@ export default defineComponent({
     },
     async copyOnly() {
       if (!this.prompt) return;
-      await injectCopyOnly(this.prompt.content);
+      await contentCopy(this.prompt.id, "prompt");
       await promptsRecordUse(this.prompt.id);
       useUIStore().pushToast("已复制到剪贴板", "success");
     },
     async inject() {
       if (!this.prompt) return;
-      const r = await injectPaste(this.prompt.content);
+      const r = await contentCopy(this.prompt.id, "prompt", true);
       if (r.ok) {
         await promptsRecordUse(this.prompt.id);
         getCurrentWebviewWindow().close();
@@ -151,7 +152,8 @@ export default defineComponent({
       </div>
     </div>
     <main v-if="prompt" class="body">
-      <MarkdownView :source="prompt.content" />
+      <RichEditor v-if="prompt.rich_content" :model-value="prompt.rich_content" readonly />
+      <MarkdownView v-else :source="prompt.content" />
     </main>
     <footer v-if="prompt" class="footer">
       <span class="stat">{{ wordCount }} 字</span>

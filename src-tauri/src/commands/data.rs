@@ -22,6 +22,8 @@ pub struct Snapshot {
     #[serde(default)]
     pub sites: Vec<Site>,
     pub settings: serde_json::Map<String, Value>,
+    #[serde(default)]
+    pub images: Vec<db::images::ImageAsset>,
 }
 
 /// 把整库导出成 Snapshot（纯函数，便于测试 round-trip）。
@@ -35,8 +37,19 @@ pub fn export_snapshot(conn: &rusqlite::Connection) -> AppResult<Snapshot> {
         Value::Object(m) => m,
         _ => serde_json::Map::new(),
     };
+    let mut image_ids = std::collections::BTreeSet::new();
+    for prompt in &prompts {
+        if let Some(doc) = &prompt.rich_content {
+            image_ids.extend(db::rich::render(conn, doc)?.2);
+        }
+    }
+    let images = image_ids
+        .iter()
+        .map(|id| db::images::get(conn, id))
+        .collect::<AppResult<Vec<_>>>()?;
     Ok(Snapshot {
-        version: 1,
+        version: 2,
+        images,
         exported_at: chrono::Utc::now().timestamp_millis(),
         folders,
         tags,
@@ -94,6 +107,20 @@ fn parse_data_uri(uri: Option<&str>) -> Option<(Vec<u8>, String)> {
 fn import_snapshot(tx: &rusqlite::Transaction, snap: &Snapshot, replace: bool) -> AppResult<u32> {
     let dberr = |e: rusqlite::Error| AppError::Db(e.to_string());
 
+    for asset in &snap.images {
+        let encoded = asset
+            .data_url
+            .strip_prefix("data:image/png;base64,")
+            .ok_or_else(|| AppError::InvalidInput("备份图片格式无效".into()))?;
+        let bytes = B64
+            .decode(encoded)
+            .map_err(|e| AppError::InvalidInput(e.to_string()))?;
+        let (png, w, h) = db::images::normalize(&bytes)?;
+        let id = db::images::store(tx, &png, w, h)?;
+        if id != asset.id {
+            return Err(AppError::InvalidInput("备份图片校验失败".into()));
+        }
+    }
     if replace {
         // 若已登录同步：可同步表用「软删（墓碑+dirty）」而非硬删，让这次清空也能同步给别的设备，
         // 否则别的设备会把旧记录重新推回来、再加上新 uuid 的副本（review #13）。
@@ -216,6 +243,9 @@ fn import_snapshot(tx: &rusqlite::Transaction, snap: &Snapshot, replace: bool) -
         )
         .map_err(dberr)?;
         let new_pid = tx.last_insert_rowid();
+        if let Some(doc) = &p.rich_content {
+            db::rich::set(tx, new_pid, doc)?;
+        }
         for old_tid in &p.tag_ids {
             if let Some(new_tid) = tag_map.get(old_tid) {
                 tx.execute(
@@ -275,7 +305,7 @@ pub fn data_import_json(
     args: ImportArgs,
 ) -> AppResult<ImportResult> {
     let snap: Snapshot = serde_json::from_str(&args.json)?;
-    if snap.version != 1 {
+    if ![1, 2].contains(&snap.version) {
         return Err(AppError::InvalidInput(format!(
             "unsupported snapshot version {}",
             snap.version
@@ -308,6 +338,86 @@ mod tests {
     use crate::models::prompt::PromptDraft;
 
     #[test]
+    fn image_clipboard_save_survives_clear_and_backup_roundtrip() {
+        let mut conn = db::memory_conn();
+        let img = image::DynamicImage::new_rgba8(2, 2);
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        let (png, w, h) = db::images::normalize(out.get_ref()).unwrap();
+        let id = db::images::store(&conn, &png, w, h).unwrap();
+        db::clipboard::insert_image(&conn, &id, 500).unwrap();
+        let clip = db::clipboard::list(&conn, 1).unwrap().remove(0);
+        let p = crate::commands::media::save_clip(&mut conn, clip.id, true).unwrap();
+        let again = crate::commands::media::save_clip(&mut conn, clip.id, true).unwrap();
+        assert_eq!(p.id, again.id);
+        db::clipboard::clear(&conn).unwrap();
+        conn.execute("UPDATE images SET created_at=0", []).unwrap();
+        db::images::collect_unused(&conn).unwrap();
+        assert_eq!(db::images::bytes(&conn, &id).unwrap(), png);
+        assert!(db::sync_repo::collect_dirty(&conn)
+            .unwrap()
+            .iter()
+            .all(|c| c.entity != "prompt"));
+        let snap = export_snapshot(&conn).unwrap();
+        let mut dest = db::memory_conn();
+        let tx = dest.transaction().unwrap();
+        import_snapshot(&tx, &snap, false).unwrap();
+        tx.commit().unwrap();
+        let restored = db::prompts::list(&dest, crate::models::prompt::SortMode::Created).unwrap();
+        assert_eq!(restored.len(), 1);
+        assert!(restored[0].is_favorite);
+        assert_eq!(restored[0].rich_content, p.rich_content);
+        assert_eq!(db::images::bytes(&dest, &id).unwrap(), png);
+    }
+
+    #[test]
+    fn rich_conversion_preserves_original_and_missing_image_rolls_back() {
+        let mut conn = db::memory_conn();
+        let original = db::prompts::create(
+            &mut conn,
+            PromptDraft {
+                title: "原文".into(),
+                content: "不变".into(),
+                rich_content: None,
+                folder_id: None,
+                tag_ids: vec![],
+            },
+        )
+        .unwrap();
+        let rich = serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"副本"}]}]});
+        let copy = db::prompts::update(
+            &mut conn,
+            original.id,
+            PromptDraft {
+                title: "图文".into(),
+                content: String::new(),
+                rich_content: Some(rich),
+                folder_id: None,
+                tag_ids: vec![],
+            },
+        )
+        .unwrap();
+        assert_ne!(copy.id, original.id);
+        assert_eq!(
+            db::prompts::get(&conn, original.id).unwrap().content,
+            "不变"
+        );
+        let invalid = db::rich::image_doc(&"0".repeat(64));
+        assert!(db::prompts::update(
+            &mut conn,
+            copy.id,
+            PromptDraft {
+                title: "不能保存".into(),
+                content: String::new(),
+                rich_content: Some(invalid),
+                folder_id: None,
+                tag_ids: vec![]
+            }
+        )
+        .is_err());
+        assert_eq!(db::prompts::get(&conn, copy.id).unwrap().title, "图文");
+    }
+    #[test]
     fn roundtrip_remaps_ids_and_restores_settings() {
         // 源库：建文件夹 + 标签 + 带标签的 prompt + 站点 + 改两个设置。
         let mut src = memory_conn();
@@ -316,6 +426,7 @@ mod tests {
         db::prompts::create(
             &mut src,
             PromptDraft {
+                rich_content: None,
                 title: "p1".into(),
                 content: "c".into(),
                 folder_id: Some(fid),

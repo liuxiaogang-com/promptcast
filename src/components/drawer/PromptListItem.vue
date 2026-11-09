@@ -56,6 +56,7 @@ export default defineComponent({
 <template>
   <div class="item" :class="{ selected }" @click="onRowClick" @contextmenu.prevent="onContext">
     <div class="main">
+      <span v-if="prompt.rich_content" class="meta">图文 · 仅本机</span>
       <div class="title-row">
         <Pin v-if="prompt.is_pinned" :size="11" class="pin" />
         <span class="title">{{ prompt.title }}</span>

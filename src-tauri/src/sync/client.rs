@@ -393,6 +393,7 @@ mod tests {
         let p = prompts::create(
             &mut a,
             PromptDraft {
+                rich_content: None,
                 title: "hello".into(),
                 content: "body".into(),
                 folder_id: Some(f),

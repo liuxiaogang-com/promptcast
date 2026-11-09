@@ -4,6 +4,7 @@ pub mod clipboard;
 pub mod data;
 pub mod folders;
 pub mod inject;
+pub mod media;
 pub mod permissions;
 pub mod ping;
 pub mod prompts;

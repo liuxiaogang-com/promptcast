@@ -10,6 +10,18 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Prompt> {
         id: r.get(0)?,
         title: r.get(1)?,
         content: r.get(2)?,
+        rich_content: r
+            .get::<_, Option<String>>(10)?
+            .map(|raw| {
+                serde_json::from_str(&raw).map_err(|e| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        10,
+                        rusqlite::types::Type::Text,
+                        Box::new(e),
+                    )
+                })
+            })
+            .transpose()?,
         folder_id: r.get(3)?,
         tag_ids: vec![], // 单独查询
         is_favorite: r.get::<_, i64>(4)? != 0,
@@ -22,7 +34,7 @@ fn map_row(r: &Row<'_>) -> rusqlite::Result<Prompt> {
 }
 
 const SELECT_COLS: &str = "id, title, content, folder_id, is_favorite, is_pinned, \
-    use_count, last_used_at, created_at, updated_at";
+    use_count, last_used_at, created_at, updated_at, rich_content";
 
 fn order_clause(sort: SortMode) -> &'static str {
     match sort {
@@ -116,11 +128,24 @@ pub fn create(conn: &mut Connection, draft: PromptDraft) -> AppResult<Prompt> {
     .map_err(|e| AppError::Db(e.to_string()))?;
     let id = tx.last_insert_rowid();
     replace_tags(&tx, id, &draft.tag_ids)?;
+    if let Some(doc) = &draft.rich_content {
+        super::rich::set(&tx, id, doc)?;
+    }
     tx.commit().map_err(|e| AppError::Db(e.to_string()))?;
     get(conn, id)
 }
 
 pub fn update(conn: &mut Connection, id: i64, draft: PromptDraft) -> AppResult<Prompt> {
+    let old = get(conn, id)?;
+    if old.rich_content.is_none() && draft.rich_content.is_some() {
+        // 文本转图文另存新 UUID，保留原同步条目，绝不静默替换云端内容。
+        return create(conn, draft);
+    }
+    if old.rich_content.is_some() && draft.rich_content.is_none() {
+        return Err(AppError::InvalidInput(
+            "图文内容不能通过旧版纯文本接口覆盖".into(),
+        ));
+    }
     if draft.title.trim().is_empty() {
         return Err(AppError::InvalidInput("title is empty".into()));
     }
@@ -138,6 +163,9 @@ pub fn update(conn: &mut Connection, id: i64, draft: PromptDraft) -> AppResult<P
         return Err(AppError::NotFound(format!("prompt {id}")));
     }
     replace_tags(&tx, id, &draft.tag_ids)?;
+    if let Some(doc) = &draft.rich_content {
+        super::rich::set(&tx, id, doc)?;
+    }
     tx.commit().map_err(|e| AppError::Db(e.to_string()))?;
     get(conn, id)
 }
@@ -210,6 +238,7 @@ mod tests {
 
     fn draft(title: &str, tag_ids: Vec<i64>) -> PromptDraft {
         PromptDraft {
+            rich_content: None,
             title: title.into(),
             content: "body".into(),
             folder_id: None,

@@ -153,6 +153,14 @@ pub fn inject_paste(app: AppHandle, content: String) -> AppResult<InjectResult> 
     }
     note_self_copy(&content);
 
+    let result = paste_prepared_clipboard(app)?;
+    if result.ok {
+        schedule_clipboard_restore(prev_clipboard, content, CLIPBOARD_RESTORE_DELAY_MS);
+    }
+    Ok(result)
+}
+
+pub fn paste_prepared_clipboard(app: AppHandle) -> AppResult<InjectResult> {
     // 3) 权限（macOS：AXIsProcessTrusted；Windows：恒 true）
     let trusted = permissions::is_trusted();
     tracing::info!(trusted, "permissions check");
@@ -236,11 +244,6 @@ pub fn inject_paste(app: AppHandle, content: String) -> AppResult<InjectResult> 
             .map_err(|err| format!("release: {err}"));
         v.and(release)
     })();
-
-    // 失败时保留新内容，确保“已复制”回退仍可手动粘贴。
-    if result.is_ok() {
-        schedule_clipboard_restore(prev_clipboard, content, CLIPBOARD_RESTORE_DELAY_MS);
-    }
 
     match result {
         Ok(()) => {

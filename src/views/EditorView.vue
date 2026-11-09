@@ -11,6 +11,8 @@ import { tagsList, tagsCreate } from "../api/tags";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { Folder } from "../types/folder";
 import type { Tag } from "../types/tag";
+import MarkdownView from "../components/preview/MarkdownView.vue";
+import RichEditor from "../components/RichEditor.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
 import { Eye, EyeOff, X, Trash2, Check } from "lucide-vue-next";
 import { useUIStore } from "../stores/ui";
@@ -26,13 +28,16 @@ import { log } from "../utils/logger";
 
 export default defineComponent({
   name: "EditorView",
-  components: { BaseToast, Eye, EyeOff, X, Trash2, Check },
+  components: { MarkdownView, RichEditor, BaseToast, Eye, EyeOff, X, Trash2, Check },
   data() {
     return {
       isNew: true,
       promptId: null as number | null,
       title: "",
       content: "",
+      richContent: null as Record<string, unknown> | null,
+      wasRich: false,
+      imageBusy: false,
       folderId: null as number | null,
       selectedTagIds: [] as number[],
       newTagInput: "",
@@ -45,7 +50,7 @@ export default defineComponent({
     };
   },
   computed: {
-    canSave(): boolean { return this.title.trim().length > 0; },
+    canSave(): boolean { return this.title.trim().length > 0 && !this.imageBusy; },
     wordCount(): number { return this.content.length; },
     selectedTags(): Tag[] {
       return this.tags.filter((t) => this.selectedTagIds.includes(t.id));
@@ -83,10 +88,14 @@ export default defineComponent({
   watch: {
     title() { this.dirty = true; },
     content() { this.dirty = true; },
+    richContent: { deep: true, handler() { this.dirty = true; } },
     folderId() { this.dirty = true; },
     selectedTagIds: { deep: true, handler() { this.dirty = true; } },
   },
   methods: {
+    enableRich() {
+      this.richContent = { type: "doc", content: this.content.split("\n").map((text) => ({ type: "paragraph", ...(text ? { content: [{ type: "text", text }] } : {}) })) };
+    },
     async loadMeta() {
       [this.folders, this.tags] = await Promise.all([foldersList(), tagsList()]);
     },
@@ -95,6 +104,8 @@ export default defineComponent({
       const p = await promptsGet(this.promptId);
       this.title = p.title;
       this.content = p.content;
+      this.richContent = p.rich_content ?? null;
+      this.wasRich = !!p.rich_content;
       this.folderId = p.folder_id;
       this.selectedTagIds = [...p.tag_ids];
       this.dirty = false;
@@ -122,6 +133,7 @@ export default defineComponent({
       const draft = {
         title: this.title.trim(),
         content: this.content,
+        rich_content: this.richContent,
         folder_id: this.folderId,
         tag_ids: this.selectedTagIds,
       };
@@ -188,7 +200,7 @@ export default defineComponent({
         <span v-if="dirty" class="dirty">· 未保存</span>
       </div>
       <div class="hr">
-        <button class="ghost" @click="previewMode = !previewMode">
+        <button class="ghost" :disabled="imageBusy" @click="previewMode = !previewMode">
           <EyeOff v-if="previewMode" :size="13" />
           <Eye v-else :size="13" />
           {{ previewMode ? "返回编辑" : "预览" }}
@@ -243,19 +255,23 @@ export default defineComponent({
         </label>
       </div>
 
-      <label class="field grow">
+      <div class="field grow">
         <div class="content-label-row">
-          <span class="label">内容（Markdown）</span>
-          <span class="word">{{ wordCount }} 字 · Tab 插入两空格</span>
+          <span class="label">{{ richContent ? "图文内容 · 仅本机" : "内容（Markdown）" }}</span>
+          <button v-if="!richContent" class="ghost" @click="enableRich">切换图文</button>
+          <span class="word">{{ wordCount }} 字<span v-if="!richContent"> · Tab 插入两空格</span></span>
         </div>
-        <textarea
+        <p v-if="richContent && !isNew && !wasRich" class="word">保存时另存图文副本，原文本保留。</p>
+        <RichEditor v-if="richContent" :key="String(previewMode)" :readonly="previewMode" v-model="richContent" @text="content = $event" @busy="imageBusy = $event" />
+        <MarkdownView v-else-if="previewMode" :source="content" />
+        <textarea v-else
           ref="contentInput"
           v-model="content"
           @keydown.tab="onContentTab"
           class="content-input"
           spellcheck="false"
         />
-      </label>
+      </div>
     </div>
     <div v-else class="loading">加载中…</div>
 

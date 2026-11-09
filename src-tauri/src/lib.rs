@@ -325,6 +325,10 @@ pub fn run() {
             commands::window::window_open_editor,
             commands::window::window_open_settings,
             commands::window::window_open_changelog,
+            commands::media::image_import,
+            commands::media::image_get,
+            commands::media::clipboard_save,
+            commands::media::content_copy,
             commands::clipboard::clipboard_list,
             commands::clipboard::clipboard_delete,
             commands::clipboard::clipboard_clear,
@@ -496,30 +500,83 @@ fn clipboard_monitor_loop(app: tauri::AppHandle) {
             continue;
         }
 
-        // 读剪贴板文本；非文本（图片/附件）get_text 失败 → 静默跳过。
-        let text = match arboard::Clipboard::new()
-            .ok()
-            .and_then(|mut c| c.get_text().ok())
-        {
-            Some(t) => t,
-            None => continue,
+        let mut clipboard = match arboard::Clipboard::new() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!(error = %e, "clipboard read failed");
+                continue;
+            }
         };
-        if text.trim().is_empty() {
+        // 图片优先，截图可能同时带有文本描述。
+        if let Ok(image) = clipboard.get_image() {
+            if image
+                .width
+                .checked_mul(image.height)
+                .is_none_or(|n| n > 16_777_216)
+            {
+                tracing::warn!("clipboard image exceeds pixel limit");
+                continue;
+            }
+            if let Some(rgba) = image::RgbaImage::from_raw(
+                image.width as u32,
+                image.height as u32,
+                image.bytes.into_owned(),
+            ) {
+                let mut png = std::io::Cursor::new(Vec::new());
+                if let Err(e) = image::DynamicImage::ImageRgba8(rgba)
+                    .write_to(&mut png, image::ImageFormat::Png)
+                {
+                    tracing::warn!(error = %e, "clipboard image encode failed");
+                    continue;
+                }
+                if png.get_ref().len() > crate::db::images::MAX_IMAGE_BYTES {
+                    continue;
+                }
+                use sha2::{Digest, Sha256};
+                let marker = format!("image:{:x}", Sha256::digest(png.get_ref()));
+                if crate::commands::inject::is_recent_self_copy(&marker) {
+                    continue;
+                }
+                if let Some(state) = app.try_state::<DbState>() {
+                    let result = (|| -> crate::error::AppResult<bool> {
+                        let mut conn = state.0.lock();
+                        let tx = conn
+                            .transaction()
+                            .map_err(|e| crate::error::AppError::Db(e.to_string()))?;
+                        crate::db::images::collect_unused(&tx)?;
+                        let id = crate::db::images::store(
+                            &tx,
+                            png.get_ref(),
+                            image.width as u32,
+                            image.height as u32,
+                        )?;
+                        let inserted = crate::db::clipboard::insert_image(&tx, &id, limit)?;
+                        tx.commit()
+                            .map_err(|e| crate::error::AppError::Db(e.to_string()))?;
+                        Ok(inserted)
+                    })();
+                    match result {
+                        Ok(true) => crate::events::emit_clipboard_changed(&app),
+                        Ok(false) => {}
+                        Err(e) => tracing::warn!(error = %e, "clipboard image record failed"),
+                    }
+                }
+            }
             continue;
         }
-        // 跳过我们自己写入的内容（注入 / 复制 / 还原）。
-        if crate::commands::inject::is_recent_self_copy(&text) {
+        let text = match clipboard.get_text() {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+        if text.trim().is_empty() || crate::commands::inject::is_recent_self_copy(&text) {
             continue;
         }
-
         if let Some(state) = app.try_state::<DbState>() {
-            let inserted = {
-                let conn = state.0.lock();
-                crate::db::clipboard::insert(&conn, &text, limit).unwrap_or(false)
-            };
-            if inserted {
-                crate::events::emit_clipboard_changed(&app);
-                tracing::info!(chars = text.chars().count(), "clipboard history recorded");
+            let conn = state.0.lock();
+            match crate::db::clipboard::insert(&conn, &text, limit) {
+                Ok(true) => crate::events::emit_clipboard_changed(&app),
+                Ok(false) => {}
+                Err(e) => tracing::warn!(error = %e, "clipboard text record failed"),
             }
         }
     }

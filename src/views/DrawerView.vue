@@ -53,6 +53,7 @@ import { ensureBackendReady } from "../api";
 import { log } from "../utils/logger";
 
 import type { Prompt } from "../types/prompt";
+import { contentCopy, clipboardSave } from "../api/media";
 import type { ClipEntry } from "../types/clipboard";
 import type { ThemeMode } from "../types/settings";
 import type { SyncStatus } from "../types/sync";
@@ -233,7 +234,7 @@ export default defineComponent({
       const c = this.selectedClip();
       if (!c) return;
       try {
-        const r = await injectPaste(c.content);
+        const r = await contentCopy(c.id, "clipboard", true);
         log.info(`clip inject ok=${r.ok} fallback=${r.fallback}`);
         if (!r.ok) {
           this.ui.pushToast(r.message ?? "注入失败 · 已复制到剪贴板", "warning");
@@ -248,12 +249,23 @@ export default defineComponent({
       await this.$nextTick();
       await this.injectClipSelected();
     },
+    async saveClip(id: number, favorite = false) {
+      try {
+        const p = await clipboardSave(id, favorite);
+        this.ui.pushToast(favorite ? "已保存并加入收藏" : "已保存到内容库", "success");
+        if (!favorite) await windowOpenEditor(p.id);
+      } catch (e) { this.ui.pushToast(`保存失败: ${e}`, "danger"); }
+    },
     async deleteClip(id: number) {
       try { await this.clip.remove(id); }
       catch (e) { log.error(`deleteClip failed: ${e}`); }
     },
     // ---- 剪贴板批量操作（多选）----
     clipsContent(ids: number[]): string {
+      if (this.clip.list.some((c) => ids.includes(c.id) && c.image_id)) {
+        this.ui.pushToast("合并操作仅支持文本，请单独复制图片", "warning");
+        return "";
+      }
       const byId = new Map(this.clip.list.map((c) => [c.id, c.content]));
       return ids.map((id) => byId.get(id) ?? "").filter((s) => s.length > 0).join("\n");
     },
@@ -283,7 +295,7 @@ export default defineComponent({
     async copyClipSelected() {
       const c = this.selectedClip();
       if (!c) return;
-      await injectCopyOnly(c.content);
+      await contentCopy(c.id, "clipboard");
       this.ui.pushToast("已复制到剪贴板", "success");
       await windowHideDrawer();
     },
@@ -301,7 +313,7 @@ export default defineComponent({
     async ctxCopy() {
       const p = this.ctxTarget; this.closeCtx();
       if (!p) return;
-      await injectCopyOnly(p.content);
+      await contentCopy(p.id, "prompt");
       this.ui.pushToast("已复制内容", "success");
     },
     async ctxDuplicate() {
@@ -310,6 +322,7 @@ export default defineComponent({
       await this.prompts.create({
         title: `${p.title} (副本)`,
         content: p.content,
+        rich_content: p.rich_content,
         folder_id: p.folder_id,
         tag_ids: [...p.tag_ids],
       });
@@ -343,7 +356,7 @@ export default defineComponent({
         return;
       }
       try {
-        const r = await injectPaste(p.content);
+        const r = await contentCopy(p.id, "prompt", true);
         log.info(`injectPaste returned ok=${r.ok} fallback=${r.fallback} msg=${r.message}`);
         if (r.ok) {
           await this.prompts.recordUse(p.id);
@@ -359,7 +372,7 @@ export default defineComponent({
       const p = this.selectedPrompt;
       if (!p) return;
       log.info(`copy prompt id=${p.id}`);
-      await injectCopyOnly(p.content);
+      await contentCopy(p.id, "prompt");
       await this.prompts.recordUse(p.id);
       this.ui.pushToast("已复制到剪贴板", "success");
       await windowHideDrawer();
@@ -459,6 +472,8 @@ export default defineComponent({
       @inject="injectClip"
       @delete="deleteClip"
       @bulk-delete="bulkDeleteClips"
+      @save="saveClip($event)"
+      @favorite="saveClip($event, true)"
       @bulk-paste="bulkPasteClips"
       @bulk-copy="bulkCopyClips"
     />

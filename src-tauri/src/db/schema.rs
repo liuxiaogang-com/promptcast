@@ -155,3 +155,26 @@ CREATE INDEX        idx_tags_dirty        ON tags(dirty) WHERE dirty = 1;
 CREATE UNIQUE INDEX idx_tags_name_live    ON tags(name) WHERE deleted_at IS NULL;
 COMMIT;
 "#;
+
+// V5 — 图文正文和本地图片。旧文本保持原样，所有新增列均可为空。
+pub const V5: &str = r#"
+BEGIN IMMEDIATE;
+ALTER TABLE prompts ADD COLUMN rich_content TEXT;
+ALTER TABLE clipboard_history ADD COLUMN image_id TEXT REFERENCES images(id);
+ALTER TABLE clipboard_history ADD COLUMN saved_prompt_id INTEGER REFERENCES prompts(id) ON DELETE SET NULL;
+CREATE TABLE images (
+  id TEXT PRIMARY KEY,
+  png BLOB NOT NULL,
+  thumbnail BLOB NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE prompt_images (
+  prompt_id INTEGER NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
+  image_id TEXT NOT NULL REFERENCES images(id),
+  PRIMARY KEY (prompt_id, image_id)
+);
+PRAGMA user_version = 5;
+COMMIT;
+"#;

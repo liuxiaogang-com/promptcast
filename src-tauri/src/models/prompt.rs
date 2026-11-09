@@ -7,6 +7,8 @@ pub struct Prompt {
     pub id: i64,
     pub title: String,
     pub content: String,
+    #[serde(default)]
+    pub rich_content: Option<serde_json::Value>,
     pub folder_id: Option<i64>,
     pub tag_ids: Vec<i64>,
     pub is_favorite: bool,
@@ -22,6 +24,8 @@ pub struct Prompt {
 pub struct PromptDraft {
     pub title: String,
     pub content: String,
+    #[serde(default)]
+    pub rich_content: Option<serde_json::Value>,
     pub folder_id: Option<i64>,
     pub tag_ids: Vec<i64>,
 }

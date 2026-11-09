@@ -4,12 +4,18 @@ use rusqlite::{params, Connection};
 use super::schema;
 use crate::error::{AppError, AppResult};
 
-const CURRENT_VERSION: i64 = 4;
+const CURRENT_VERSION: i64 = 5;
 
 pub fn migrate(conn: &Connection) -> AppResult<()> {
     let v: i64 = conn
         .query_row("PRAGMA user_version", [], |r| r.get(0))
         .map_err(|e| AppError::Db(e.to_string()))?;
+
+    if v > CURRENT_VERSION {
+        return Err(AppError::Db(format!(
+            "数据库版本 {v} 高于当前支持的 {CURRENT_VERSION}，请使用新版应用"
+        )));
+    }
 
     if v < 1 {
         conn.execute_batch(schema::V1)
@@ -45,6 +51,11 @@ pub fn migrate(conn: &Connection) -> AppResult<()> {
         conn.execute_batch("PRAGMA foreign_keys = ON;")
             .map_err(|e| AppError::Db(e.to_string()))?;
         res?;
+    }
+
+    if v < 5 {
+        conn.execute_batch(schema::V5)
+            .map_err(|e| AppError::Db(format!("apply v5: {e}")))?;
     }
 
     if v != CURRENT_VERSION {
@@ -97,6 +108,17 @@ fn backfill_v3(conn: &Connection) -> AppResult<()> {
 mod tests {
     use super::*;
     use rusqlite::Connection;
+
+    #[test]
+    fn future_schema_is_rejected_without_changing_version() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA user_version = 6;").unwrap();
+        assert!(migrate(&conn).is_err());
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 6);
+    }
 
     #[test]
     fn migrate_is_idempotent() {

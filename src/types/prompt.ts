@@ -3,6 +3,7 @@ export interface Prompt {
   id: number;
   title: string;
   content: string;
+  rich_content?: Record<string, unknown> | null;
   folder_id: number | null;
   tag_ids: number[];
   is_favorite: boolean;
@@ -16,6 +17,7 @@ export interface Prompt {
 export interface PromptDraft {
   title: string;
   content: string;
+  rich_content?: Record<string, unknown> | null;
   folder_id: number | null;
   tag_ids: number[];
 }

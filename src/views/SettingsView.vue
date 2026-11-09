@@ -401,7 +401,7 @@ export default defineComponent({
             <div class="row">
               <div>
                 <div class="title">记录剪贴板历史</div>
-                <div class="sub">后台记录复制的文本，在抽屉「剪贴板」分类里查看。仅文本，图片/附件忽略。</div>
+                <div class="sub">后台记录复制的内容，在抽屉「剪贴板」分类里查看。支持文本和图片；图片仅保存在本机。</div>
               </div>
               <span class="spacer" />
               <label class="switch">
