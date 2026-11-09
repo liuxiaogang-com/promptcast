@@ -540,7 +540,8 @@ fn macos_self_update(
     let dir = std::env::temp_dir().join("promptcast-update");
     std::fs::create_dir_all(&dir).map_err(|e| UpdateError::Io(e.to_string()))?;
     let script_path = dir.join("pc-selfupdate.sh");
-    std::fs::write(&script_path, MACOS_UPDATE_SCRIPT).map_err(|e| UpdateError::Io(e.to_string()))?;
+    std::fs::write(&script_path, MACOS_UPDATE_SCRIPT)
+        .map_err(|e| UpdateError::Io(e.to_string()))?;
     std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
         .map_err(|e| UpdateError::Io(e.to_string()))?;
 
