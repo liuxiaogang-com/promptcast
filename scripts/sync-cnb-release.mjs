@@ -115,22 +115,18 @@ async function main() {
   // 取锁后拉最新 main，避免排队任务使用旧 checkout 覆盖已发布日志。
   git("fetch", "https://cnb.cool/liuxiaogang/promptcast.git", "main");
   git("checkout", "-B", "release-sync", "FETCH_HEAD");
-  const releases = [];
-  for (let page = 1; ; page++) {
-    const batch = await (await request(`https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100&page=${page}`)).json();
-    releases.push(...batch);
-    if (batch.length < 100) break;
-  }
-  const candidates = releases.filter((r) => !r.draft && !r.prerelease && /^v\d+\.\d+\.\d+$/.test(r.tag_name))
-    .sort((a, b) => compareVersions(a.tag_name.slice(1), b.tag_name.slice(1)));
-  for (const release of candidates) {
+  // 静态索引仅在 GitHub Release 完整发布后更新，不依赖共享出口的匿名 API 配额。
+  const index = await (await request(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/release-index.json`)).json();
+  const candidates = index.releases.sort((a, b) => compareVersions(a.version, b.version));
+  for (const manifest of candidates) {
+    const tag = `v${manifest.version}`;
+    const release = { tag_name: tag, assets: manifest.assets.map((asset) => ({
+      ...asset, browser_download_url: `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${encodeURIComponent(asset.name)}`,
+    })) };
     const current = readJson("update.json", null);
     const log = readJson("changelog.json", { releases: [] });
-    if (current && compareVersions(current.version, release.tag_name.slice(1)) >= 0
-        && log.releases.some((r) => r.version === release.tag_name.slice(1))) continue;
-    const metadata = release.assets.find((a) => a.name === "release.json");
-    if (!metadata) { console.log(`${release.tag_name}: 无同步元数据，跳过旧版`); continue; }
-    const manifest = await (await request(metadata.browser_download_url)).json();
+    if (current && compareVersions(current.version, manifest.version) >= 0
+        && log.releases.some((r) => r.version === manifest.version)) continue;
     validateManifest(manifest, release);
     console.log(`同步 ${release.tag_name}`);
     // 只同步该 tag 的代码对象，以便 CNB Release 对应正确源码；不覆盖 CNB main。

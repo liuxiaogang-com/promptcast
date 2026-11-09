@@ -1,0 +1,46 @@
+{
+  "releases": [
+    {
+      "version": "0.0.9",
+      "title": "更新入口迁移与独立版本日志",
+      "notes": "- 更新检测与版本日志使用固定入口，后续更换下载源无需重新安装客户端。\n- 版本日志独立加载，可在设置的「关于」页面查看历史记录；日志不可用不影响安装更新。\n- GitHub 构建签名后，由 CNB 自动同步安装包、校验完整性并发布更新。\n- 更新弹窗显示的版本与安装版本保持一致；发布信息变化时提示重新检查。",
+      "pub_date": "2026-11-09T06:24:09.147Z",
+      "assets": [
+        {
+          "name": "PromptCast_0.0.9_universal.dmg",
+          "size": 17217007,
+          "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+        },
+        {
+          "name": "PromptCast_0.0.9_x64-setup.exe",
+          "size": 4989025,
+          "sha256": "1df5321a66bd3bb45e9167983471f407591e02b44560e84602f21a16b23b8a8e"
+        },
+        {
+          "name": "PromptCast_0.0.9_x64_en-US.msi",
+          "size": 7053312,
+          "sha256": "b9a8dce9bf2f620957ef5a1a8dffdb5adc33fdc3259b51ca2e66a1129fba306e"
+        },
+        {
+          "name": "PromptCast_universal.app.tar.gz",
+          "size": 15898765,
+          "sha256": "143c76af77d1d07b89fd590507393261532171fa93429015d7d6b601531c63a5"
+        }
+      ],
+      "downloads": {
+        "darwin-aarch64": {
+          "name": "PromptCast_0.0.9_universal.dmg",
+          "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+        },
+        "darwin-x86_64": {
+          "name": "PromptCast_0.0.9_universal.dmg",
+          "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+        },
+        "windows-x86_64": {
+          "name": "PromptCast_0.0.9_x64-setup.exe",
+          "sha256": "1df5321a66bd3bb45e9167983471f407591e02b44560e84602f21a16b23b8a8e"
+        }
+      }
+    }
+  ]
+}

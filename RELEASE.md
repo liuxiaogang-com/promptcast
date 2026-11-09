@@ -22,7 +22,9 @@ CNB 使用自身流水线的临时 `CNB_TOKEN`。CNB 仓库必须公开，客户
 1. 同步修改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 的版本号。
 2. 新建 `releases/v版本.md`，第一行一级标题，其余为 Markdown 日志。
 3. 提交到 GitHub main，再创建并推送 `v版本` tag；也将代码提交同步到 CNB main（不得强推）。
-4. GitHub 两平台构建成功后生成 `release.json`（附件名称、大小、SHA256、版本日志），最后公开 Release。
+4. GitHub 两平台构建成功后生成 `release.json`（附件名称、大小、SHA256、版本日志），
+   公开 Release 后才把元数据写入 main 的 `release-index.json`。CNB 读取静态索引，
+   不调用 GitHub 匿名 Release API，避免共享出口的 API 额度限制。
 5. CNB 定时任务下载并校验同一份安装包，上传 Release，匿名下载复核后，提交日志与更新清单。
    两个 JSON 在同一个提交中发布，清单不会早于日志和附件可用。
 

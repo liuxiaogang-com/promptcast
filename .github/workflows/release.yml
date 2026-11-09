@@ -113,6 +113,9 @@ jobs:
 
   # 两平台都成功后上传同步元数据，最后公开 Release；GitHub 无需 CNB 密钥。
   publish:
+    concurrency:
+      group: release-index
+      cancel-in-progress: false
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -142,3 +145,8 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" release.json --repo "${GITHUB_REPOSITORY}" --clobber
           gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
             --notes-file "releases/${GITHUB_REF_NAME}.md" --draft=false --latest
+
+      - name: Publish static release index
+        run: |
+          set -euo pipefail
+          node scripts/publish-release-index.mjs
