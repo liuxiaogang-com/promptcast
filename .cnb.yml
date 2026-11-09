@@ -35,3 +35,19 @@ $:
           script: cargo clippy --manifest-path src-tauri/Cargo.toml
         - name: test
           script: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+# CNB 主动同步公开 GitHub 产物。锁覆盖定时和手动入口，防止清单并发覆盖。
+main:
+  "crontab: */10 * * * *": &release-sync
+    - name: release-sync
+      docker:
+        image: node:22-bookworm
+      lock:
+        key: promptcast-release-sync
+        wait: true
+        expires: 3600
+        timeout: 3600
+      stages:
+        - name: sync-github-release
+          script: node scripts/sync-cnb-release.mjs
+  web_trigger_release_sync: *release-sync

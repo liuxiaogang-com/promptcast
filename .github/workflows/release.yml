@@ -1,18 +1,4 @@
-# PromptCast 多平台发布 —— 打 tag（v*）即在真机上打包、发布 Release、并自动更新线上 update.json。
-#
-# 为什么用 GitHub Actions 而非 CNB：CNB 构建节点只有 Linux Docker（amd64/arm64），
-# 结构上无法产出 Windows .exe/.msi（需 Windows）与 macOS .dmg（需苹果机器）。
-# CNB 的 .cnb.yml 仍负责 push 时的测试/lint；本 workflow 只负责发版打包。
-#
-# 全自动流程（消除「update.json 抢在资产前上线」的竞态）：
-#   1) 打注释 tag：git tag -a v0.0.3 -m "标题" -m "说明…" && git push github v0.0.3
-#   2) build：macOS(通用) + Windows 并行编译 → 产物传到「草稿」Release
-#   3) publish：下载产物算 sha256 → 【先发布 Release】→【再把 update.json 提交到 main】
-#      —— 顺序保证 update.json 只在资产已公开可下载之后才宣告新版本。
-#
-# 注：自建更新器（托管 JSON 清单），非 Tauri 官方 updater，无需 minisign 签名。
-# macOS 包为 ad-hoc 未签名，拷到别的 Mac 首次打开需右键「打开」（见 RELEASE.md）。
-
+# GitHub 负责构建签名和公开 Release；CNB 主动拉取后发布日志与更新清单。
 name: Release
 
 on:
@@ -22,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # 创建/发布 Release、提交 update.json 到 main
+  contents: write # 创建/发布 Release
 
 jobs:
   build:
@@ -43,6 +29,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      - name: Require a version tag
+        shell: bash
+        run: '[[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -115,99 +105,40 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "PromptCast ${{ github.ref_name }}"
-          releaseBody: "安装包见下方资产。详细说明见 update.json。"
+          releaseBody: "安装包构建完成后自动补充版本日志。"
           # 草稿：两平台产物传齐、由 publish job 校验后再发布，避免半成品 Release 外泄。
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
-  # 两平台都成功后：发布 Release 并把 update.json 写回 main（顺序见文件头）。
+  # 两平台都成功后上传同步元数据，最后公开 Release；GitHub 无需 CNB 密钥。
   publish:
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Checkout main
+      - name: Checkout release tag
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          ref: main
-          fetch-depth: 0 # 需要 tag 对象来读注释（标题/说明）
+          node-version: 22
 
-      - name: Resolve metadata
-        id: meta
+      - name: Download built assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" -D assets --clobber
+
+      - name: Prepare release metadata
+        run: node scripts/prepare-release.mjs
+
+      - name: Upload metadata and publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"
-          VER="${TAG#v}"
-          git fetch --tags --force --quiet
-          # 注释 tag：第一段 -m 作标题，其余作说明；缺省给兜底。
-          TITLE="$(git tag -l --format='%(contents:subject)' "$TAG")"
-          NOTES="$(git tag -l --format='%(contents:body)' "$TAG")"
-          [ -z "$TITLE" ] && TITLE="PromptCast $VER"
-          {
-            echo "tag=$TAG"
-            echo "ver=$VER"
-            echo "pub_date=$(date -u +%F)"
-            echo "title=$TITLE"
-            echo "notes<<__NOTES__"
-            echo "$NOTES"
-            echo "__NOTES__"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Download built assets (from draft release)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
-            -D assets --clobber
-
-      - name: Generate update.json
-        env:
-          REPO: ${{ github.repository }}
-          TAG: ${{ steps.meta.outputs.tag }}
-          VER: ${{ steps.meta.outputs.ver }}
-          PUBDATE: ${{ steps.meta.outputs.pub_date }}
-          TITLE: ${{ steps.meta.outputs.title }}
-          NOTES: ${{ steps.meta.outputs.notes }}
-        run: |
-          set -euo pipefail
-          DMG="PromptCast_${VER}_universal.dmg"
-          EXE="PromptCast_${VER}_x64-setup.exe"
-          BASE="https://github.com/${REPO}/releases/download/${TAG}"
-          DMG_SHA="$(sha256sum "assets/${DMG}" | awk '{print $1}')"
-          EXE_SHA="$(sha256sum "assets/${EXE}" | awk '{print $1}')"
-          jq -n \
-            --arg comment "PromptCast 线上更新清单（由 CI 自动生成；勿手改）。客户端预制读取本文件 raw 直链。" \
-            --arg ver "$VER" --arg title "$TITLE" --arg notes "$NOTES" --arg pub "$PUBDATE" \
-            --arg dmgurl "$BASE/$DMG" --arg dmgsha "$DMG_SHA" \
-            --arg exeurl "$BASE/$EXE" --arg exesha "$EXE_SHA" \
-            '{_comment:$comment, version:$ver, title:$title, notes:$notes, pub_date:$pub,
-              downloads:{
-                "windows-x86_64":{url:$exeurl, sha256:$exesha},
-                "darwin-aarch64":{url:$dmgurl, sha256:$dmgsha},
-                "darwin-x86_64":{url:$dmgurl, sha256:$dmgsha}
-              }}' > update.json
-          echo "--- generated update.json ---"; cat update.json
-
-      # 先发布 Release（资产此刻才公开可下载），再提交 update.json —— 这是消除竞态的关键顺序。
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false --latest
-
-      - name: Commit update.json to main
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add update.json
-          if git diff --cached --quiet; then
-            echo "update.json 无变化，跳过提交"
-          else
-            git commit -m "chore(release): 发布 ${GITHUB_REF_NAME} 的 update.json [skip ci]"
-            git push origin HEAD:main
-          fi
+          gh release upload "${GITHUB_REF_NAME}" release.json --repo "${GITHUB_REPOSITORY}" --clobber
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+            --notes-file "releases/${GITHUB_REF_NAME}.md" --draft=false --latest

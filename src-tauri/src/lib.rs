@@ -350,6 +350,7 @@ pub fn run() {
             commands::sync::sync_get_server_url,
             commands::sync::sync_set_server_url,
             commands::update::update_check,
+            commands::update::update_changelog,
             commands::update::update_download_install,
             commands::update::update_get_manifest_url,
             commands::update::update_set_manifest_url,

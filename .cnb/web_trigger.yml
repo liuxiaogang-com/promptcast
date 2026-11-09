@@ -1,0 +1,6 @@
+branch:
+  - reg: ^main$
+    buttons:
+      - name: 同步 GitHub 发布
+        description: 下载已完成的正式版，同步至 CNB 并更新日志和检测清单
+        event: web_trigger_release_sync

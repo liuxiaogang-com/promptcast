@@ -8,7 +8,7 @@ use tauri::{AppHandle, State};
 
 use crate::db::DbState;
 use crate::error::{AppError, AppResult};
-use crate::update::{self, UpdateInfo};
+use crate::update::{self, ReleaseNotes, UpdateInfo};
 
 fn map_err(e: update::UpdateError) -> AppError {
     AppError::Internal(e.to_string())
@@ -20,7 +20,7 @@ fn resolve_url(db: &State<'_, DbState>) -> String {
     update::get_manifest_url(&conn)
 }
 
-/// 查更新。未配置 / 已是最新 / 本平台无包 → 返回 null。
+/// 查更新。未配置 / 已是最新 → 返回 null；本平台无包返回明确错误。
 /// `(async)`：同步命令跑在主线程，阻塞的 HTTP 拉清单会卡死 UI；标记后 Tauri 放到独立线程执行。
 #[tauri::command(async)]
 pub fn update_check(db: State<'_, DbState>) -> AppResult<Option<UpdateInfo>> {
@@ -36,12 +36,16 @@ pub fn update_check(db: State<'_, DbState>) -> AppResult<Option<UpdateInfo>> {
 /// 不接收前端传的 url —— 后端按当前平台重新读清单，避免被骗下载任意二进制。
 /// `(async)`：必须在独立线程跑，否则数秒~数分钟的阻塞下载会卡死主线程（鼠标转圈/假死）。
 #[tauri::command(async)]
-pub fn update_download_install(app: AppHandle, db: State<'_, DbState>) -> AppResult<()> {
+pub fn update_download_install(
+    app: AppHandle,
+    db: State<'_, DbState>,
+    expected_version: String,
+) -> AppResult<()> {
     let url = resolve_url(&db);
     if url.is_empty() {
         return Err(map_err(update::UpdateError::NotConfigured));
     }
-    update::download_and_install(&app, &url).map_err(map_err)
+    update::download_and_install(&app, &url, &expected_version).map_err(map_err)
 }
 
 #[tauri::command]
@@ -53,4 +57,9 @@ pub fn update_get_manifest_url(db: State<'_, DbState>) -> AppResult<String> {
 pub fn update_set_manifest_url(db: State<'_, DbState>, url: String) -> AppResult<()> {
     let conn = db.0.lock();
     update::set_manifest_url(&conn, &url)
+}
+
+#[tauri::command(async)]
+pub fn update_changelog() -> AppResult<Vec<ReleaseNotes>> {
+    update::changelog().map_err(map_err)
 }

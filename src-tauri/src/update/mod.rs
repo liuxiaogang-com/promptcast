@@ -22,10 +22,9 @@ use tauri::{AppHandle, Emitter};
 const MANIFEST_URL_KEY: &str = "update_manifest_url";
 const PROGRESS_EVENT: &str = "update-progress";
 
-/// 预制更新清单地址（公开 GitHub 仓库的 raw 直链）。用户不可改、不在 UI 暴露——
-/// 「自动生成」即写死在这里；将来换源（如 CNB 镜像）改此常量重新发版即可。
-pub const DEFAULT_MANIFEST_URL: &str =
-    "https://raw.githubusercontent.com/jianjimi/promptcast/main/update.json";
+/// 固定入口可通过 HTTPS 重定向换源，不再要求客户端重新发版。
+pub const DEFAULT_MANIFEST_URL: &str = "https://go.liuxiaogang.com/promptcast-update";
+pub const CHANGELOG_URL: &str = "https://go.liuxiaogang.com/promptcast-changelog";
 
 // 同一时刻只允许一个下载在跑：清单/资产下载是固定临时路径，且更新窗在 drawer 与 settings
 // 两个 webview 各挂一份；两窗并发下载会抢同一个文件、进度也会串。compare_exchange 占坑。
@@ -110,6 +109,25 @@ pub struct UpdateInfo {
     pub pub_date: Option<String>,
 }
 
+/// 日志独立于更新清单；包含已安装版本和历史版本，不受更新检查结果影响。
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ReleaseNotes {
+    pub version: String,
+    pub title: String,
+    pub notes: String,
+    pub pub_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Changelog {
+    releases: Vec<ReleaseNotes>,
+}
+
+pub fn changelog() -> Result<Vec<ReleaseNotes>, UpdateError> {
+    let log: Changelog = fetch_json(CHANGELOG_URL)?;
+    Ok(log.releases)
+}
+
 /// 当前 app 版本（编译期来自 Cargo.toml）。
 pub fn current_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -189,7 +207,7 @@ fn http_client(timeout: Duration) -> reqwest::blocking::Client {
         .expect("reqwest client")
 }
 
-fn fetch_manifest(url: &str) -> Result<Manifest, UpdateError> {
+fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, UpdateError> {
     // 清单是整条信任链的根：它给出版本号和各平台资产 URL。它自己也必须走 https，
     // 否则明文清单被 MITM 换掉，攻击者可同时伪造版本号 + 自带 sha256 的恶意资产链接。
     if !is_secure_or_local(url) {
@@ -197,16 +215,21 @@ fn fetch_manifest(url: &str) -> Result<Manifest, UpdateError> {
     }
     let resp = http_client(Duration::from_secs(20))
         .get(url)
+        .header(reqwest::header::CACHE_CONTROL, "no-cache")
         .send()
         .map_err(|e| UpdateError::Network(e.to_string()))?;
     if !resp.status().is_success() {
         return Err(UpdateError::Network(format!("http {}", resp.status())));
     }
-    resp.json::<Manifest>()
+    resp.json::<T>()
         .map_err(|e| UpdateError::Parse(e.to_string()))
 }
 
-/// 查更新：读清单 → 比版本。无新版/本平台无包 → Ok(None)。
+fn fetch_manifest(url: &str) -> Result<Manifest, UpdateError> {
+    fetch_json(url)
+}
+
+/// 查更新：读清单 → 比版本。无新版 → Ok(None)，本平台无包返回明确错误。
 /// 入参是已解析好的清单地址；调用方负责在拿地址后**先释放 DbState 锁再调本函数**，
 /// 否则网络往返期间整库被锁，剪贴板/同步/列表全卡（单连接架构）。
 pub fn check(url: &str) -> Result<Option<UpdateInfo>, UpdateError> {
@@ -221,7 +244,7 @@ pub fn check(url: &str) -> Result<Option<UpdateInfo>, UpdateError> {
             platform = platform_key(),
             "update available but no asset for this platform"
         );
-        return Ok(None);
+        return Err(UpdateError::NoAsset(platform_key()));
     }
     Ok(Some(UpdateInfo {
         version: m.version,
@@ -441,7 +464,11 @@ fn launch_installer(path: &std::path::Path) -> Result<(), UpdateError> {
 /// 下载并拉起安装器。重新读清单按当前平台取链接（不信任前端传值）。
 /// 入参是已解析好的清单地址；同 `check`，调用方必须先释放 DbState 锁再调（下载长达数分钟，
 /// 持锁会冻结整库）。
-pub fn download_and_install(app: &AppHandle, url: &str) -> Result<(), UpdateError> {
+pub fn download_and_install(
+    app: &AppHandle,
+    url: &str,
+    expected_version: &str,
+) -> Result<(), UpdateError> {
     // 占坑：已有下载在跑就直接拒，避免两窗抢同一临时文件 / 进度串台。
     if DOWNLOADING
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -459,9 +486,9 @@ pub fn download_and_install(app: &AppHandle, url: &str) -> Result<(), UpdateErro
     let _guard = Guard;
 
     let m = fetch_manifest(url)?;
-    // 二次确认确实是更新（防 check 后清单回退仍触发下载旧版）。
-    if !is_newer(&m.version, current_version()) {
-        return Ok(());
+    // 清单换版后要求重新确认，不能展示 A 却安装 B。
+    if m.version != expected_version || !is_newer(&m.version, current_version()) {
+        return Err(UpdateError::Parse("版本信息已变化，请重新检查更新".into()));
     }
     let asset = m
         .downloads

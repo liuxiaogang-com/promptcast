@@ -13,3 +13,10 @@ export interface UpdateProgress {
   downloaded: number;
   total: number | null;
 }
+
+export interface ReleaseNotes {
+  version: string;
+  title: string;
+  notes: string;
+  pub_date: string | null;
+}

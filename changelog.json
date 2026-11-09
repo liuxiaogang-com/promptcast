@@ -1,0 +1,10 @@
+{
+  "releases": [
+    {
+      "version": "0.0.8",
+      "title": "Windows 静默自更新 + NSIS 中文安装器",
+      "notes": "· Windows 更新不再弹安装向导，静默安装后自动重启\n· NSIS 安装器中文化\n· 更新重启检测跨平台",
+      "pub_date": "2026-06-25"
+    }
+  ]
+}

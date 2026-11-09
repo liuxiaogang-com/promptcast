@@ -16,6 +16,7 @@ import FoldersPanel from "../components/settings/FoldersPanel.vue";
 import SitesPanel from "../components/settings/SitesPanel.vue";
 import DataPanel from "../components/settings/DataPanel.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
+import ReleaseNotes from "../components/ReleaseNotes.vue";
 import UpdateModal from "../components/UpdateModal.vue";
 
 import { useSettingsStore } from "../stores/settings";
@@ -63,7 +64,7 @@ interface NavItem {
 export default defineComponent({
   name: "SettingsView",
   components: {
-    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal,
+    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal, ReleaseNotes,
     Sliders, Keyboard, Palette, FolderTree, Globe, Database,
     ShieldCheck, Info, X, SettingsIcon, FileText,
     Cloud, RefreshCw, LogOut,
@@ -78,6 +79,7 @@ export default defineComponent({
       appVer: "",
       // 更新（清单地址已预制在后端，不再可配置）
       updBusy: false,
+      showReleaseNotes: false,
       // 账户 / 同步
       emailDraft: "",
       passwordDraft: "",
@@ -674,10 +676,16 @@ export default defineComponent({
                 <div class="sub">v{{ appVersion }} · MIT License</div>
               </div>
               <span class="spacer" />
+              <button class="ghost" :aria-expanded="showReleaseNotes" @click="showReleaseNotes = !showReleaseNotes">
+                <FileText :size="13" /> 版本日志
+              </button>
               <button class="primary" :disabled="updBusy" @click="checkUpdates">
                 <RefreshCw :size="13" /> {{ updBusy ? "检查中…" : "检查更新" }}
               </button>
             </div>
+          </div>
+          <div v-if="showReleaseNotes" class="card">
+            <ReleaseNotes />
           </div>
           <div class="card">
             <div class="row">

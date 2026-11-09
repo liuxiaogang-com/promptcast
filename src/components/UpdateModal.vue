@@ -5,10 +5,12 @@ import { defineComponent } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useUpdateStore } from "../stores/update";
 import { windowSetModalOpen } from "../api/window";
+import ReleaseNotes from "./ReleaseNotes.vue";
 import { isMac } from "../utils/format";
 
 export default defineComponent({
   name: "UpdateModal",
+  components: { ReleaseNotes },
   data() {
     return { modalActive: false };
   },
@@ -85,7 +87,7 @@ export default defineComponent({
 
       <h3 v-if="store.info!.title" class="upd-title">{{ store.info!.title }}</h3>
       <div v-if="store.info!.pub_date" class="upd-date">{{ store.info!.pub_date }}</div>
-      <pre v-if="store.info!.notes" class="upd-notes">{{ store.info!.notes }}</pre>
+      <ReleaseNotes :version="store.info!.version" />
 
       <div v-if="store.error" class="upd-err">{{ store.error }}</div>
 
@@ -188,19 +190,6 @@ export default defineComponent({
 .upd-date {
   font-size: 12px;
   color: var(--text-tertiary);
-}
-.upd-notes {
-  margin: 10px 0 0;
-  padding: 10px 12px;
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 .upd-err {
   margin-top: 10px;

@@ -120,7 +120,7 @@ export const useUpdateStore = defineStore("update", {
       }
     },
     async startInstall(): Promise<void> {
-      if (this.downloading) return;
+      if (this.downloading || !this.info) return;
       this.downloading = true;
       this.launched = false;
       this.error = null;
@@ -135,7 +135,7 @@ export const useUpdateStore = defineStore("update", {
         );
       }
       try {
-        await updateDownloadInstall();
+        await updateDownloadInstall(this.info.version);
         // 命令返回 = 安装器已拉起（Windows setup/msi、macOS dmg 已打开）。
         this.launched = true;
       } catch (e) {
