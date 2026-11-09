@@ -17,6 +17,11 @@ CNB 使用自身流水线的临时 `CNB_TOKEN`。CNB 仓库必须公开，客户
 按版本降序保留历史。客户端查看历史不触发更新检查，弹窗按版本号取日志；日志请求失败不阻止安装。
 `update.json` 仍保留旧格式和 `title/notes`，兼容旧版解析；新版不依赖这两个字段来加载完整日志。
 
+后续版本只发布 Windows NSIS `.exe` 和 macOS 通用 `.dmg` 两种安装包，
+不再构建 MSI 或额外分发 `.app.tar.gz`。流水线直接调用 Tauri CLI，按平台指定
+`--bundles nsis` / `--bundles dmg`，只上传对应安装文件。`release.json` 仍作为自动同步元数据保留。
+已发布的 0.0.9 附件及历史索引保持不变，CNB 同步器继续兼容历史附件格式。
+
 每次发布：
 
 1. 同步修改 `package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json` 的版本号。

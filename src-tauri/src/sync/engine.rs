@@ -24,9 +24,18 @@ pub struct Outcome {
 pub fn sync_once(app: &AppHandle) -> AppResult<Outcome> {
     let db = app.state::<DbState>();
     let rt = app.state::<SyncRuntime>();
+    let Some(_account_guard) = rt.account_gate.try_lock() else {
+        return Ok(Outcome::default());
+    };
 
     let (enabled, user_id, mut cursor, base) = {
         let conn = db.0.lock();
+        if crate::db::settings::get_raw(&conn, super::AUTH_TRANSITION_KEY)?.as_deref() == Some("1")
+        {
+            return Err(AppError::Internal(
+                "账户变更未完成，请重新登录；本地数据已保留".into(),
+            ));
+        }
         let s = sync_state::get(&conn)?;
         let base = server_url(&conn);
         (s.sync_enabled, s.user_id, s.last_pull_cursor, base)

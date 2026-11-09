@@ -16,10 +16,13 @@ const KEYRING_SERVICE: &str = "com.xiao.promptmanager";
 const KEYRING_ACCOUNT: &str = "refresh_token";
 const DEFAULT_SERVER: &str = "http://localhost:3000";
 const SERVER_URL_KEY: &str = "sync_server_url";
+pub const AUTH_TRANSITION_KEY: &str = "sync_auth_transition";
 
 /// 同步运行期状态（内存）。access token 不落盘；refresh token 进系统钥匙串。
 #[derive(Default)]
 pub struct SyncRuntime {
+    /// 串行化账户变更与完整同步周期，防止旧请求写入新账户状态。
+    pub account_gate: Mutex<()>,
     pub access: Mutex<Option<String>>,
     pub email: Mutex<Option<String>>,
     /// 置位以触发一次同步（本地写后 / 获焦时）。
@@ -41,9 +44,19 @@ pub fn load_refresh() -> Option<String> {
         .get_password()
         .ok()
 }
-pub fn clear_refresh() {
-    if let Ok(e) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT) {
-        let _ = e.delete_credential();
+pub fn clear_refresh() -> bool {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT) {
+        Ok(e) => match e.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => true,
+            Err(e) => {
+                tracing::error!(error = %e, "failed to clear refresh credential");
+                false
+            }
+        },
+        Err(e) => {
+            tracing::error!(error = %e, "failed to open refresh credential");
+            false
+        }
     }
 }
 

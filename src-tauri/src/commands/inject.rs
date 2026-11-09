@@ -265,8 +265,18 @@ pub fn permissions_check_accessibility() -> bool {
 }
 
 #[tauri::command]
-pub fn permissions_request_accessibility() -> bool {
+pub fn permissions_request_accessibility() -> AppResult<bool> {
     let trusted = permissions::prompt_trust();
     tracing::info!(trusted, "permissions_request_accessibility");
-    trusted
+    // macOS 不保证重复弹系统授权框，显式请求时直接打开对应设置页。
+    #[cfg(target_os = "macos")]
+    if !trusted {
+        let status = std::process::Command::new("/usr/bin/open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .status()?;
+        if !status.success() {
+            return Err(AppError::Internal("无法打开辅助功能设置".into()));
+        }
+    }
+    Ok(trusted)
 }

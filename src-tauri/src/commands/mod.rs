@@ -5,6 +5,7 @@ pub mod data;
 pub mod folders;
 pub mod inject;
 pub mod ping;
+pub mod permissions;
 pub mod prompts;
 pub mod settings;
 pub mod sites;

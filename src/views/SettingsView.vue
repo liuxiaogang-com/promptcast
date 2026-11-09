@@ -3,11 +3,10 @@
 -->
 <script lang="ts">
 import { defineComponent } from "vue";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import {
   Sliders, Keyboard, Palette, FolderTree, Globe, Database,
-  ShieldCheck, Info, X, Settings as SettingsIcon, FileText,
+  ShieldCheck, Info, FileText,
   Cloud, RefreshCw, LogOut,
 } from "lucide-vue-next";
 
@@ -23,10 +22,10 @@ import { useSettingsStore } from "../stores/settings";
 import {
   registerHotkey,
   unregisterHotkey,
+  windowOpenPermissions,
 } from "../api/window";
 import {
   permissionsCheckAccessibility,
-  permissionsRequestAccessibility,
 } from "../api/inject";
 import { logDir, ensureBackendReady } from "../api";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -66,7 +65,7 @@ export default defineComponent({
   components: {
     HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal, ReleaseNotes,
     Sliders, Keyboard, Palette, FolderTree, Globe, Database,
-    ShieldCheck, Info, X, SettingsIcon, FileText,
+    ShieldCheck, Info, FileText,
     Cloud, RefreshCw, LogOut,
   },
   data() {
@@ -134,6 +133,7 @@ export default defineComponent({
     applyPersistedTheme(this.settings.data.theme);
     this.hotkeyDraft = this.settings.data.hotkey ?? "";
     this.accessibilityOk = await permissionsCheckAccessibility();
+    window.addEventListener("focus", this.recheckAccess);
     try { this.logsPath = await logDir(); } catch { /* */ }
     try { this.appVer = await getVersion(); } catch { /* */ }
 
@@ -154,11 +154,11 @@ export default defineComponent({
     );
   },
   beforeUnmount() {
+    window.removeEventListener("focus", this.recheckAccess);
     for (const u of this.unlisteners) u();
   },
   methods: {
     setTab(t: TabKey) { this.tab = t; },
-    close() { getCurrentWebviewWindow().close(); },
     async setTheme(mode: "system" | "light" | "dark") {
       log.info(`theme switched to ${mode}`);
       await this.settings.set("theme", mode);
@@ -178,12 +178,16 @@ export default defineComponent({
     },
     async saveHotkey() {
       log.info(`saving hotkey: ${this.hotkeyDraft}`);
-      await this.settings.set("hotkey", this.hotkeyDraft || null);
       try {
         if (this.hotkeyDraft) await registerHotkey(this.hotkeyDraft);
         else await unregisterHotkey();
+        await this.settings.loadAll();
+        this.uiStore.pushToast("快捷键设置已保存", "success");
       } catch (e) {
         log.error(`register hotkey failed: ${e}`);
+        this.uiStore.pushToast(String(e), "danger");
+        await this.settings.loadAll();
+        this.hotkeyDraft = this.settings.data.hotkey ?? "";
       }
     },
     async clearHotkey() {
@@ -194,7 +198,7 @@ export default defineComponent({
       this.accessibilityOk = await permissionsCheckAccessibility();
     },
     async requestAccess() {
-      this.accessibilityOk = await permissionsRequestAccessibility();
+      await windowOpenPermissions();
     },
     async openLogsDir() {
       if (!this.logsPath) return;
@@ -314,15 +318,6 @@ export default defineComponent({
 
 <template>
   <div class="settings">
-    <header class="head">
-      <div class="hl">
-        <SettingsIcon :size="14" class="hl-ico" />
-        <span class="brand">设置</span>
-      </div>
-      <button class="close" @click="close">
-        <X :size="14" />
-      </button>
-    </header>
     <div class="body">
       <nav class="nav">
         <button
@@ -620,11 +615,11 @@ export default defineComponent({
         <DataPanel v-if="tab === 'data'" />
 
         <!-- 权限诊断 -->
-        <section v-if="tab === 'permissions'" class="panel">
+        <section v-if="tab === 'permissions'" class="panel permissions-panel">
           <h3>权限诊断</h3>
           <div class="card">
-            <div class="row">
-              <div>
+            <div class="row diagnostic-row">
+              <div class="diagnostic-copy">
                 <div class="title">{{ isMacOS ? "macOS 辅助功能" : "键盘模拟权限" }}</div>
                 <div class="sub">
                   {{
@@ -634,14 +629,13 @@ export default defineComponent({
                   }}
                 </div>
               </div>
-              <span class="spacer" />
               <span :class="['status', accessibilityOk ? 'ok' : 'bad']">
                 {{ accessibilityOk ? "已授权" : "未授权" }}
               </span>
             </div>
             <div v-if="!accessibilityOk && isMacOS" class="hint">
-              点下面按钮 → 系统会弹出引导窗 → 在「辅助功能」里把
-              <b>PromptCast</b>（开发模式下可能显示为 prompt-manager）加入并勾选 → 重启应用使其生效。
+              点下面按钮打开授权引导，将
+              <b>PromptCast</b>（开发模式下可能显示为 prompt-manager）拖入系统「辅助功能」列表并开启开关；返回本窗口会自动重新检测。
             </div>
             <div class="row">
               <span class="spacer" />
@@ -652,12 +646,11 @@ export default defineComponent({
             </div>
           </div>
           <div class="card">
-            <div class="row">
-              <div>
+            <div class="row diagnostic-row">
+              <div class="diagnostic-copy">
                 <div class="title">日志</div>
                 <div class="sub">所有操作和错误会写入此目录的 app.log。出问题时把这个文件给开发者。</div>
               </div>
-              <span class="spacer" />
               <button class="ghost" @click="openLogsDir">
                 <FileText :size="13" /> 打开日志目录
               </button>
@@ -720,28 +713,6 @@ export default defineComponent({
   background: var(--bg-surface);
   color: var(--text-primary);
 }
-.head {
-  height: 48px;
-  padding: 0 12px 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-titlebar);
-  -webkit-app-region: drag;
-}
-.hl { display: flex; align-items: center; gap: 8px; }
-.hl-ico { color: var(--accent); }
-.brand { font-weight: 600; font-size: 13px; }
-.close {
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 6px;
-  color: var(--text-secondary);
-  -webkit-app-region: no-drag;
-}
-.close:hover { background: var(--bg-hover); color: var(--text-primary); }
-
 .body { flex: 1; display: flex; min-height: 0; }
 .nav {
   width: 160px;
@@ -792,6 +763,13 @@ export default defineComponent({
   border-radius: 6px;
   word-break: break-all;
 }
+
+.permissions-panel .diagnostic-row { flex-wrap: wrap; }
+.permissions-panel .diagnostic-copy { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.permissions-panel .status,
+.permissions-panel button { flex-shrink: 0; white-space: nowrap; }
+.permissions-panel button svg { flex-shrink: 0; }
+.permissions-panel .path { word-break: normal; overflow-wrap: anywhere; }
 
 .radio-card {
   display: flex; align-items: center; gap: 10px;

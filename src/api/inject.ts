@@ -18,3 +18,13 @@ export const permissionsCheckAccessibility = () =>
 
 export const permissionsRequestAccessibility = () =>
   invoke<boolean>("permissions_request_accessibility");
+
+export interface PermissionAppTarget {
+  path: string;
+  bundled: boolean;
+}
+
+export const permissionsAppTarget = () =>
+  invoke<PermissionAppTarget>("permissions_app_target");
+
+export const permissionsDragApp = () => invoke<void>("permissions_drag_app");

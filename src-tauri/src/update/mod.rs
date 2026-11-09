@@ -284,8 +284,7 @@ fn download_asset(app: &AppHandle, asset: &Asset) -> Result<PathBuf, UpdateError
     if !is_secure_or_local(&asset.url) {
         return Err(UpdateError::Insecure(asset.url.clone()));
     }
-    let dir = std::env::temp_dir().join("promptcast-update");
-    std::fs::create_dir_all(&dir).map_err(|e| UpdateError::Io(e.to_string()))?;
+    let dir = update_job_dir()?;
     let path = dir.join(filename_from_url(&asset.url));
 
     let mut resp = http_client(Duration::from_secs(300))
@@ -394,54 +393,37 @@ fn windows_self_update(app: &AppHandle, installer: &std::path::Path) -> Result<(
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-    let dir = std::env::temp_dir().join("promptcast-update");
-    std::fs::create_dir_all(&dir).map_err(|e| UpdateError::Io(e.to_string()))?;
-    let script_path = dir.join("pc-selfupdate.bat");
-    std::fs::write(&script_path, WINDOWS_UPDATE_SCRIPT)
-        .map_err(|e| UpdateError::Io(e.to_string()))?;
-
-    let _ = std::fs::write(relaunch_flag_path(), "1");
-
+    use base64::Engine;
+    let job = update_job_dir()?;
     let exe = std::env::current_exe().map_err(|e| UpdateError::Launch(e.to_string()))?;
-
-    std::process::Command::new("cmd")
-        .arg("/C")
-        .arg(&script_path)
-        .arg(installer)
-        .arg(std::process::id().to_string())
-        .arg(&exe)
+    // 编码完整命令，路径只作为 PowerShell 单引号字面量，不经过 cmd 展开。
+    let quote = |p: &std::path::Path| format!("'{}'", p.to_string_lossy().replace('\'', "''"));
+    let command = format!(
+        "& {{ {} }} -Installer {} -AppPid {} -Exe {} -Job {}",
+        WINDOWS_UPDATE_SCRIPT,
+        quote(installer),
+        std::process::id(),
+        quote(&exe),
+        quote(&job)
+    );
+    let bytes: Vec<u8> = command.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+    let system_root = std::env::var_os("SystemRoot")
+        .ok_or_else(|| UpdateError::Launch("SystemRoot is unavailable".into()))?;
+    let powershell =
+        PathBuf::from(system_root).join("System32/WindowsPowerShell/v1.0/powershell.exe");
+    let child = std::process::Command::new(powershell)
+        .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| UpdateError::Launch(e.to_string()))?;
-
-    let handle = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(1500));
-        handle.exit(0);
-    });
+    wait_for_update_helper(child, &job)?;
+    exit_for_update(app);
     Ok(())
 }
 
-/// 等本体退出 → 静默 NSIS 安装 → 重启新版。用 `ping` 做延时（无窗口进程不支持 `timeout`）。
 #[cfg(target_os = "windows")]
-const WINDOWS_UPDATE_SCRIPT: &str = r#"@echo off
-set "INSTALLER=%~1"
-set "PID=%~2"
-set "EXE=%~3"
-set /a N=0
-:wait
-if %N% GEQ 100 goto install
-tasklist /FI "PID eq %PID%" 2>NUL | find "%PID%" >NUL
-if not errorlevel 1 (
-    set /a N+=1
-    ping -n 2 127.0.0.1 >NUL
-    goto wait
-)
-:install
-start /wait "" "%INSTALLER%" /S
-if exist "%EXE%" start "" "%EXE%"
-del "%INSTALLER%" 2>NUL
-"#;
+const WINDOWS_UPDATE_SCRIPT: &str = include_str!("install-windows.ps1");
 
 #[cfg(target_os = "macos")]
 fn launch_installer(path: &std::path::Path) -> Result<(), UpdateError> {
@@ -477,13 +459,15 @@ pub fn download_and_install(
         return Err(UpdateError::Busy);
     }
     // 守卫：任何返回路径（含 ?）都会 drop 它，复位标志，不会卡死后续下载。
-    struct Guard;
+    struct Guard(bool);
     impl Drop for Guard {
         fn drop(&mut self) {
-            DOWNLOADING.store(false, Ordering::SeqCst);
+            if !self.0 {
+                DOWNLOADING.store(false, Ordering::SeqCst);
+            }
         }
     }
-    let _guard = Guard;
+    let mut guard = Guard(false);
 
     let m = fetch_manifest(url)?;
     // 清单换版后要求重新确认，不能展示 A 却安装 B。
@@ -500,14 +484,18 @@ pub fn download_and_install(
     {
         if let Some(bundle) = current_app_bundle() {
             tracing::info!(bundle = %bundle.display(), "scheduling macOS self-update");
-            return macos_self_update(app, &path, &bundle);
+            macos_self_update(app, &path, &bundle)?;
+            guard.0 = true; // 已安排退出，拒绝第二个安装任务直到进程结束。
+            return Ok(());
         }
         tracing::warn!("not inside a .app (dev build?); falling back to opening dmg");
     }
     #[cfg(target_os = "windows")]
     {
         tracing::info!("scheduling Windows silent self-update");
-        return windows_self_update(app, &path);
+        windows_self_update(app, &path)?;
+        guard.0 = true;
+        return Ok(());
     }
     launch_installer(&path)
 }
@@ -536,57 +524,76 @@ fn macos_self_update(
     dmg: &std::path::Path,
     bundle: &std::path::Path,
 ) -> Result<(), UpdateError> {
-    use std::os::unix::fs::PermissionsExt;
-    let dir = std::env::temp_dir().join("promptcast-update");
-    std::fs::create_dir_all(&dir).map_err(|e| UpdateError::Io(e.to_string()))?;
-    let script_path = dir.join("pc-selfupdate.sh");
+    let job = update_job_dir()?;
+    let script_path = job.join("install.sh");
     std::fs::write(&script_path, MACOS_UPDATE_SCRIPT)
         .map_err(|e| UpdateError::Io(e.to_string()))?;
-    std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755))
-        .map_err(|e| UpdateError::Io(e.to_string()))?;
-
-    // 写重启标记：脚本重启后，新实例在启动时检测到它就唤起抽屉，告知用户「已更新并重启」。
-    let _ = std::fs::write(relaunch_flag_path(), "1");
-
-    // 分离子进程：父进程退出后它被 init 收养、继续运行；用本进程 pid 作为「等谁退出」的目标。
-    std::process::Command::new("/bin/sh")
+    let child = std::process::Command::new("/bin/sh")
         .arg(&script_path)
         .arg(dmg)
         .arg(bundle)
         .arg(std::process::id().to_string())
+        .arg(&job)
         .spawn()
         .map_err(|e| UpdateError::Launch(e.to_string()))?;
+    wait_for_update_helper(child, &job)?;
+    exit_for_update(app);
+    Ok(())
+}
 
+#[cfg(target_os = "macos")]
+const MACOS_UPDATE_SCRIPT: &str = concat!(
+    include_str!("replace-macos.sh"),
+    "\n",
+    include_str!("install-macos.sh")
+);
+
+fn update_job_dir() -> Result<PathBuf, UpdateError> {
+    let job = std::env::temp_dir()
+        .join("promptcast-update")
+        .join(uuid::Uuid::new_v4().to_string());
+    std::fs::create_dir_all(&job).map_err(|e| UpdateError::Io(e.to_string()))?;
+    Ok(job)
+}
+
+// 安装助手准备成功才退出应用。助手缺失、无法写盘或预检失败时原应用继续运行。
+fn wait_for_update_helper(
+    mut child: std::process::Child,
+    job: &std::path::Path,
+) -> Result<(), UpdateError> {
+    let started = std::time::Instant::now();
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|e| UpdateError::Launch(e.to_string()))?
+        {
+            let detail = std::fs::read_to_string(job.join("error.txt"))
+                .unwrap_or_else(|_| status.to_string());
+            return Err(UpdateError::Launch(format!(
+                "更新准备失败，应用未退出：{detail}"
+            )));
+        }
+        if job.join("ready").is_file() {
+            return Ok(());
+        }
+        if started.elapsed() > Duration::from_secs(120) {
+            if let Err(e) = child.kill() {
+                tracing::error!(error = %e, "failed to stop update helper");
+            }
+            let _ = child.wait();
+            return Err(UpdateError::Launch("更新准备超时，应用未退出".into()));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+fn exit_for_update(app: &AppHandle) {
     let handle = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_millis(1500));
         handle.exit(0);
     });
-    Ok(())
 }
-
-/// 等本体退出 → 挂载 dmg → 安全替换 .app（先 ditto 到 .new，成功才换）→ 去隔离属性 → 重启。
-/// 任何一步失败都尽量不破坏旧 .app（只在 ditto 成功后才删旧），最差情况是仍打开旧版本。
-#[cfg(target_os = "macos")]
-const MACOS_UPDATE_SCRIPT: &str = r#"#!/bin/sh
-DMG="$1"; APP="$2"; PID="$3"
-i=0
-while kill -0 "$PID" 2>/dev/null; do sleep 0.3; i=$((i+1)); [ "$i" -gt 100 ] && break; done
-MNT=$(mktemp -d /tmp/pcupd.XXXXXX) || exit 0
-if /usr/bin/hdiutil attach "$DMG" -nobrowse -noautoopen -mountpoint "$MNT" >/dev/null 2>&1; then
-  SRC=$(/bin/ls -d "$MNT"/*.app 2>/dev/null | head -n1)
-  if [ -n "$SRC" ]; then
-    rm -rf "${APP}.new"
-    if /usr/bin/ditto "$SRC" "${APP}.new"; then
-      /usr/bin/xattr -dr com.apple.quarantine "${APP}.new" 2>/dev/null || true
-      rm -rf "$APP" && mv "${APP}.new" "$APP"
-    fi
-  fi
-  /usr/bin/hdiutil detach "$MNT" >/dev/null 2>&1 || true
-fi
-rmdir "$MNT" 2>/dev/null || true
-/usr/bin/open "$APP"
-"#;
 
 #[cfg(test)]
 mod tests {

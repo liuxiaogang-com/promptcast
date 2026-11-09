@@ -1,10 +1,11 @@
 {
   "name": "prompt-manager",
   "private": true,
-  "version": "0.0.9",
+  "version": "0.0.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:mac": "node scripts/dev-macos.mjs",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",

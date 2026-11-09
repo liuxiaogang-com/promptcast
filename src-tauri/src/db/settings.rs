@@ -62,7 +62,7 @@ pub fn set_raw(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
 
 pub fn get_all(conn: &Connection) -> AppResult<Settings> {
     let mut s = Settings {
-        hotkey: None,
+        hotkey: Some("CmdOrCtrl+Shift+P".into()),
         theme: ThemeMode::System,
         default_action: DefaultAction::Inject,
         pin_default: false,
@@ -99,4 +99,31 @@ pub fn set(conn: &Connection, key: &str, value: &Value) -> AppResult<()> {
         )));
     }
     write_value(conn, key, value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fresh_settings_have_valid_default_hotkey() {
+        let conn = crate::db::memory_conn();
+        let hotkey = get_all(&conn).unwrap().hotkey.unwrap();
+        assert_eq!(hotkey, "CmdOrCtrl+Shift+P");
+        assert!(hotkey
+            .parse::<tauri_plugin_global_shortcut::Shortcut>()
+            .is_ok());
+    }
+
+    #[test]
+    fn saved_hotkey_and_explicit_disable_override_default() {
+        let conn = crate::db::memory_conn();
+        set(&conn, "hotkey", &serde_json::json!("Alt+Shift+P")).unwrap();
+        assert_eq!(
+            get_all(&conn).unwrap().hotkey.as_deref(),
+            Some("Alt+Shift+P")
+        );
+        set(&conn, "hotkey", &Value::Null).unwrap();
+        assert_eq!(get_all(&conn).unwrap().hotkey, None);
+    }
 }

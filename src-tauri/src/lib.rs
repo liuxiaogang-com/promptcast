@@ -69,7 +69,13 @@ pub fn run() {
             app.manage(crate::sync::SyncRuntime::default());
             // 重启后恢复会话：钥匙串有 refresh ⇒ 已登录；email 从 settings 取回供 UI 显示。
             // access token 不落盘，首次同步会用 refresh 换取。
-            if crate::sync::load_refresh().is_some() {
+            let auth_transition_pending = crate::db::settings::get_raw(
+                &app.state::<DbState>().0.lock(),
+                crate::sync::AUTH_TRANSITION_KEY,
+            )
+            .map(|v| v.as_deref() == Some("1"))
+            .unwrap_or(true);
+            if !auth_transition_pending && crate::sync::load_refresh().is_some() {
                 let db = app.state::<DbState>();
                 let email = {
                     let conn = db.0.lock();
@@ -144,7 +150,7 @@ pub fn run() {
             // editor/preview/settings 是 tauri.conf 预声明的单例窗口，靠 show/hide 复用。
             // 关闭时若真的销毁，show_singleton 之后会 NotFound → 开一次就再也打不开。
             // 因此拦截 CloseRequested：阻止默认关闭，改为隐藏（覆盖前端 .close() 与原生关闭按钮）。
-            for label in ["editor", "preview", "settings"] {
+            for label in ["editor", "preview", "settings", "permissions"] {
                 if let Some(win) = app.get_webview_window(label) {
                     let hide_target = win.clone();
                     let app_h = app.handle().clone();
@@ -167,13 +173,15 @@ pub fn run() {
                             let app2 = app_h.clone();
                             let _ = app_h.run_on_main_thread(move || {
                                 let any_other_visible =
-                                    ["editor", "preview", "settings"].iter().any(|&l| {
-                                        l != closing.as_str()
-                                            && app2
-                                                .get_webview_window(l)
-                                                .and_then(|w| w.is_visible().ok())
-                                                .unwrap_or(false)
-                                    });
+                                    ["editor", "preview", "settings", "permissions"].iter().any(
+                                        |&l| {
+                                            l != closing.as_str()
+                                                && app2
+                                                    .get_webview_window(l)
+                                                    .and_then(|w| w.is_visible().ok())
+                                                    .unwrap_or(false)
+                                        },
+                                    );
                                 if any_other_visible {
                                     return;
                                 }
@@ -197,7 +205,9 @@ pub fn run() {
             let settings = crate::db::settings::get_all(&app.state::<DbState>().0.lock()).ok();
             if let Some(s) = settings {
                 if let Some(shortcut) = s.hotkey {
-                    register_global_hotkey(app.handle(), &shortcut);
+                    if let Err(e) = register_global_hotkey(app.handle(), &shortcut) {
+                        tracing::error!(error = %e, "register startup hotkey failed");
+                    }
                 }
                 // 启动时把持久化的 auto_start 偏好同步到系统层
                 crate::commands::settings::apply_autostart(app.handle(), s.auto_start);
@@ -245,30 +255,11 @@ pub fn run() {
                 }
             }
 
-            // ---- 启动辅助功能状态（仅记录，不在启动自动弹框）----
-            // 不主动弹：真正需要权限时（用户按下粘贴/注入），inject 路径会按需弹一次系统引导并复制兜底，
-            // 比每次启动都弹更克制。注：ad-hoc 未签名 App 更新替换后 macOS 会重置 TCC 授权，需重授一次；
-            // 跨更新保留授权的根治办法是用稳定证书签名（见 RELEASE.md）。
-            #[cfg(target_os = "macos")]
-            {
-                tracing::info!(
-                    trusted = crate::platform::permissions::is_trusted(),
-                    "accessibility status at startup"
-                );
-            }
-
-            // 更新重启后：检测到标记则唤起抽屉，让用户知道已更新并重启成功。
-            {
-                let flag = crate::update::relaunch_flag_path();
-                if flag.exists() {
-                    let _ = std::fs::remove_file(&flag);
-                    let h = app.handle().clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(800));
-                        let h2 = h.clone();
-                        let _ = h.run_on_main_thread(move || summon_drawer(&h2));
-                    });
-                    tracing::info!("post-update launch detected; summoning drawer");
+            // 启动显示统一在 Ready 处理，包括更新后的重启。
+            let flag = crate::update::relaunch_flag_path();
+            if flag.exists() {
+                if let Err(e) = std::fs::remove_file(&flag) {
+                    tracing::warn!(error = %e, "failed to remove relaunch flag");
                 }
             }
 
@@ -288,6 +279,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::ping::ping,
+            commands::window::window_open_permissions,
+            commands::permissions::permissions_app_target,
+            commands::permissions::permissions_drag_app,
             logging::log_record,
             logging::log_dir,
             commands::prompts::prompts_list,
@@ -355,23 +349,39 @@ pub fn run() {
             commands::update::update_get_manifest_url,
             commands::update::update_set_manifest_url,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            tauri::RunEvent::Ready => {
+                summon_drawer(app);
+                #[cfg(target_os = "macos")]
+                show_startup_permission_hint(app);
+            }
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => summon_drawer(app),
+            _ => {}
+        });
+}
+
+#[cfg(target_os = "macos")]
+fn show_startup_permission_hint(app: &tauri::AppHandle) {
+    if !crate::platform::permissions::is_trusted() {
+        if let Err(e) = crate::commands::window::window_open_permissions(app.clone()) {
+            tracing::error!(error = %e, "failed to show permission guide");
+        }
+    }
 }
 
 struct LoggingGuard(#[allow(dead_code)] tracing_appender::non_blocking::WorkerGuard);
 
 #[tauri::command]
 fn register_hotkey_cmd(app: tauri::AppHandle, shortcut: String) -> Result<(), String> {
-    register_global_hotkey(&app, &shortcut);
-    Ok(())
+    crate::commands::settings::set_hotkey(&app, Some(shortcut)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 fn unregister_hotkey_cmd(app: tauri::AppHandle) -> Result<(), String> {
-    let _ = app.global_shortcut().unregister_all();
-    tracing::info!("global hotkeys unregistered");
-    Ok(())
+    crate::commands::settings::set_hotkey(&app, None).map_err(|e| e.to_string())
 }
 
 /// 后端是否就绪：DbState 是否已 manage。
@@ -538,8 +548,7 @@ fn summon_drawer(app: &tauri::AppHandle) {
     tracing::info!("summon_drawer: shown + made key");
 }
 
-fn register_global_hotkey(app: &tauri::AppHandle, shortcut: &str) {
-    let _ = app.global_shortcut().unregister_all();
+fn register_global_hotkey(app: &tauri::AppHandle, shortcut: &str) -> Result<(), String> {
     let app_clone = app.clone();
     let our_pid = std::process::id() as i32;
     let res = app
@@ -599,8 +608,7 @@ fn register_global_hotkey(app: &tauri::AppHandle, shortcut: &str) {
                 tracing::info!("hotkey: activated self + drawer shown + made key (main thread)");
             });
         });
-    match res {
-        Ok(_) => tracing::info!(shortcut, "global hotkey registered"),
-        Err(e) => tracing::error!(shortcut, error = %e, "register hotkey failed"),
-    }
+    res.map_err(|e| format!("快捷键注册失败，可能已被其他应用占用：{e}"))?;
+    tracing::info!(shortcut, "global hotkey registered");
+    Ok(())
 }

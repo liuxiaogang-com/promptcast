@@ -17,7 +17,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  hotkey: null,
+  hotkey: "CmdOrCtrl+Shift+P",
   theme: "system",
   default_action: "inject",
   pin_default: false,

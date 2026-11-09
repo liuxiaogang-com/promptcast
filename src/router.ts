@@ -1,8 +1,13 @@
-// router.ts — 四窗口共用一个 Vue bundle，路由按 hash 区分。
+// router.ts — 多窗口共用一个 Vue bundle，路由按 hash 区分。
 // 每个 Tauri WebviewWindow 加载 index.html#/<route>。
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 
 const routes: RouteRecordRaw[] = [
+  {
+    path: "/permissions",
+    name: "permissions",
+    component: () => import("./views/PermissionsView.vue"),
+  },
   { path: "/", redirect: "/drawer" },
   {
     path: "/drawer",

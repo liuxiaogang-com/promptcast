@@ -15,7 +15,7 @@ const [heading, ...body] = source.split("\n");
 const title = heading.replace(/^#\s+/, "");
 const notes = body.join("\n").trim();
 const assets = readdirSync("assets")
-  .filter((name) => /\.(dmg|exe|msi|tar\.gz)$/.test(name))
+  .filter((name) => /\.(dmg|exe)$/.test(name))
   .map((name) => ({
     name,
     size: statSync(join("assets", name)).size,

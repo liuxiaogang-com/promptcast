@@ -18,3 +18,6 @@ export const registerHotkey = (shortcut: string) =>
   invoke<void>("register_hotkey_cmd", { shortcut });
 export const unregisterHotkey = () =>
   invoke<void>("unregister_hotkey_cmd");
+
+export const windowOpenPermissions = () =>
+  invoke<{ label: string }>("window_open_permissions");

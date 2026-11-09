@@ -131,3 +131,17 @@ pub fn window_open_editor(app: AppHandle, id: Option<i64>) -> AppResult<WindowIn
 pub fn window_open_settings(app: AppHandle) -> AppResult<WindowInfo> {
     show_singleton(&app, "settings", Some("#/settings"))
 }
+
+#[tauri::command]
+pub fn window_open_permissions(app: AppHandle) -> AppResult<WindowInfo> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::activate_self();
+        show_singleton(&app, "permissions", Some("#/permissions"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = app;
+        Err(AppError::InvalidInput("当前平台无需辅助功能授权".into()))
+    }
+}

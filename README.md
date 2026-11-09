@@ -38,21 +38,29 @@
 ```bash
 pnpm install
 pnpm tauri dev
+
+# macOS 需要验证辅助功能授权时：
+pnpm dev:mac
 ```
+
+`dev:mac` 保留前端热更新；修改 Rust 后需退出并重新运行此命令。它只生成本地调试应用，不生成安装包或发布版本。
 
 打包：
 
 ```bash
-pnpm tauri build
-# macOS: src-tauri/target/release/bundle/dmg/*.dmg
-# Windows: src-tauri/target/release/bundle/msi/*.msi
+# macOS：
+pnpm tauri build --bundles dmg
+# 输出：src-tauri/target/release/bundle/dmg/*.dmg
+# Windows：
+pnpm tauri build --bundles nsis
+# 输出：src-tauri/target/release/bundle/nsis/*.exe
 ```
 
 ## 首次使用
 
-1. 启动后会弹出 400×720 的抽屉，全局快捷键尚未设置
-2. 点击右上 ⚙ 进入「设置 → 快捷键」录制并应用（建议三键组合，如 ⌘⇧P / Ctrl+Shift+P）
-3. **macOS**：还需到 系统设置 → 隐私与安全 → 辅助功能 把 PromptCast 加入并勾选，否则注入会回退到仅复制
+1. 启动后会显示 400×720 的主抽屉；默认快捷键为 macOS `⌘⇧P`、Windows `Ctrl+Shift+P`
+2. 可点击右上 ⚙ 进入「设置 → 快捷键」修改或清空快捷键
+3. **macOS**：未授权时启动会显示独立授权引导，点击「打开辅助功能设置」，将引导中的应用图标拖入列表并开启开关；也可点击「在访达中显示」定位文件。macOS 请用 `pnpm dev:mac` 启动独立的 `PromptCast Dev.app` 后授权；裸命令行进程的权限可能归属于启动工具。开发应用使用临时签名，Rust 重新编译后可能需要重新授权。未授权时注入回退为仅复制
 4. **Windows**：通常无需额外授权；如果想注入到以管理员权限运行的窗口（如管理员命令行），需要把 PromptCast 也以管理员权限启动（UIPI 限制）
 
 ## 项目结构

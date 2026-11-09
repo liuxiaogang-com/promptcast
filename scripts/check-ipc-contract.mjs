@@ -83,7 +83,7 @@ const rustCmds = new Map(); // cmd -> Set(camelCase param names)
 for (const f of walk(join(ROOT, "src-tauri", "src"))) {
   if (!f.endsWith(".rs")) continue;
   const src = readFileSync(f, "utf8");
-  const re = /#\[tauri::command(?:\([^\]]*\))?\][^\n]*\n\s*(?:pub\s+)?fn\s+([a-z0-9_]+)\s*\(([^)]*)\)/g;
+  const re = /#\[tauri::command(?:\([^\]]*\))?\][^\n]*\n\s*(?:pub\s+)?(?:async\s+)?fn\s+([a-z0-9_]+)\s*\(([^)]*)\)/g;
   let m;
   while ((m = re.exec(src))) {
     const name = m[1];

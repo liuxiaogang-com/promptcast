@@ -18,11 +18,13 @@ jobs:
         include:
           # macOS：通用二进制（一份 dmg 同时覆盖 Apple Silicon 与 Intel）。
           - platform: macos-latest
-            args: "--target universal-apple-darwin"
+            args: "--target universal-apple-darwin --bundles dmg"
+            artifact-path: "src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg"
             rust-targets: "aarch64-apple-darwin,x86_64-apple-darwin"
-          # Windows：NSIS setup.exe + MSI。
+          # Windows：只分发 NSIS setup.exe。
           - platform: windows-latest
-            args: ""
+            args: "--bundles nsis"
+            artifact-path: "src-tauri/target/release/bundle/nsis/*.exe"
             rust-targets: ""
           # Linux 不构建：更新器未覆盖，且 enigo 在 Linux 需 libxdo，价值低，按需再加。
 
@@ -96,20 +98,20 @@ jobs:
           echo "--- 可用代码签名身份 ---"
           security find-identity -v -p codesigning "$KC"
 
-      - name: Build app & upload to release (draft)
-        uses: tauri-apps/tauri-action@v0
+      # 直接调用 CLI，避免 tauri-action 额外压缩并上传 .app.tar.gz。
+      - name: Build installer
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS 用此身份签名（Windows 忽略）。空则不签名。
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: pnpm tauri build ${{ matrix.args }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "PromptCast ${{ github.ref_name }}"
-          releaseBody: "安装包构建完成后自动补充版本日志。"
-          # 草稿：两平台产物传齐、由 publish job 校验后再发布，避免半成品 Release 外泄。
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+          name: installers-${{ matrix.platform }}
+          path: ${{ matrix.artifact-path }}
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: true
 
   # 两平台都成功后上传同步元数据，最后公开 Release；GitHub 无需 CNB 密钥。
   publish:
@@ -129,10 +131,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Download built assets
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release download "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" -D assets --clobber
+      - name: Download built installers
+        uses: actions/download-artifact@v4
+        with:
+          pattern: installers-*
+          path: assets
+          merge-multiple: true
 
       - name: Prepare release metadata
         run: node scripts/prepare-release.mjs
@@ -142,7 +146,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release upload "${GITHUB_REF_NAME}" release.json --repo "${GITHUB_REPOSITORY}" --clobber
+          if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag --draft --title "PromptCast ${GITHUB_REF_NAME}" \
+              --notes-file "releases/${GITHUB_REF_NAME}.md"
+          fi
+          gh release upload "${GITHUB_REF_NAME}" assets/*.exe assets/*.dmg release.json \
+            --repo "${GITHUB_REPOSITORY}" --clobber
           gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" \
             --notes-file "releases/${GITHUB_REF_NAME}.md" --draft=false --latest
 
