@@ -29,7 +29,7 @@ export function validateManifest(manifest, release) {
   if (!Array.isArray(manifest.assets) || !manifest.assets.length) throw new Error("缺少附件");
   const names = new Set();
   for (const asset of manifest.assets) {
-    if (!/^[a-zA-Z0-9_.-]+\.(dmg|exe|msi)$/.test(asset.name) || names.has(asset.name)) throw new Error("附件名无效或重复");
+    if (!/^[a-zA-Z0-9_.-]+\.(dmg|exe|msi|tar\.gz)$/.test(asset.name) || names.has(asset.name)) throw new Error("附件名无效或重复");
     names.add(asset.name);
     if (!/^[a-f0-9]{64}$/.test(asset.sha256) || !Number.isSafeInteger(asset.size) || asset.size <= 0) throw new Error("附件校验信息无效");
     if (!release.assets.some((a) => a.name === asset.name && a.size === asset.size)) throw new Error(`GitHub 附件未齐全: ${asset.name}`);
