@@ -1,21 +1,20 @@
 {
-  "_comment": "PromptCast 线上更新清单（由 CI 自动生成；勿手改）。客户端预制读取本文件 raw 直链。",
-  "version": "0.0.8",
-  "title": "Windows 静默自更新 + NSIS 中文安装器",
-  "notes": "· Windows 更新不再弹安装向导，静默安装后自动重启\n· NSIS 安装器中文化\n· 更新重启检测跨平台",
-  "pub_date": "2026-06-25",
+  "version": "0.0.9",
+  "title": "更新入口迁移与独立版本日志",
+  "notes": "- 更新检测与版本日志使用固定入口，后续更换下载源无需重新安装客户端。\n- 版本日志独立加载，可在设置的「关于」页面查看历史记录；日志不可用不影响安装更新。\n- GitHub 构建签名后，由 CNB 自动同步安装包、校验完整性并发布更新。\n- 更新弹窗显示的版本与安装版本保持一致；发布信息变化时提示重新检查。",
+  "pub_date": "2026-11-09T06:24:09.147Z",
   "downloads": {
-    "windows-x86_64": {
-      "url": "https://github.com/jianjimi/promptcast/releases/download/v0.0.8/PromptCast_0.0.8_x64-setup.exe",
-      "sha256": "a72ea29c147ae7b16ffcf2cc0ed9eb1fc39783010f07462425c7a888270d5db3"
-    },
     "darwin-aarch64": {
-      "url": "https://github.com/jianjimi/promptcast/releases/download/v0.0.8/PromptCast_0.0.8_universal.dmg",
-      "sha256": "331dee5d007d9e8ba398fa37076dc86fb1fd167217b5d95b073473892fdc02b7"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_universal.dmg",
+      "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
     },
     "darwin-x86_64": {
-      "url": "https://github.com/jianjimi/promptcast/releases/download/v0.0.8/PromptCast_0.0.8_universal.dmg",
-      "sha256": "331dee5d007d9e8ba398fa37076dc86fb1fd167217b5d95b073473892fdc02b7"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_universal.dmg",
+      "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+    },
+    "windows-x86_64": {
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_x64-setup.exe",
+      "sha256": "1df5321a66bd3bb45e9167983471f407591e02b44560e84602f21a16b23b8a8e"
     }
   }
 }
