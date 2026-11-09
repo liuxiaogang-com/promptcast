@@ -1,20 +1,20 @@
 {
-  "version": "0.0.9",
-  "title": "更新入口迁移与独立版本日志",
-  "notes": "- 更新检测与版本日志使用固定入口，后续更换下载源无需重新安装客户端。\n- 版本日志独立加载，可在设置的「关于」页面查看历史记录；日志不可用不影响安装更新。\n- GitHub 构建签名后，由 CNB 自动同步安装包、校验完整性并发布更新。\n- 更新弹窗显示的版本与安装版本保持一致；发布信息变化时提示重新检查。",
-  "pub_date": "2026-11-09T06:24:09.147Z",
+  "version": "0.0.10",
+  "title": "启动、授权与更新体验修复",
+  "notes": "- 启动应用时展示主窗口；默认使用 ⌘⇧P / Ctrl+Shift+P 唤起，保留已有自定义快捷键和禁用设置。\n- 新增 macOS 辅助功能授权引导，自动检测授权状态，修复窗口层级与权限诊断页面换行问题。\n- 移除设置页重复标题栏，使用系统原生窗口控制。\n- 修复自动检查更新的运行时错误，以及快捷键注册失败时覆盖原配置的问题。\n- 改进更新安装流程：准备成功后退出应用，保留旧应用备份，安装失败时尝试恢复。\n- 账户请求不再阻塞界面；切换账户前提示清空本地内容，失败时回滚本地数据并暂停同步。\n- 安装包仅保留 Windows EXE 和 macOS 通用 DMG。",
+  "pub_date": "2026-11-09T08:12:31.545Z",
   "downloads": {
     "darwin-aarch64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_universal.dmg",
-      "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.10/PromptCast_0.0.10_universal.dmg",
+      "sha256": "0b6938085abb8e1927f85ddd40a590f386a42e2de3874fe173729ce9f105b1a2"
     },
     "darwin-x86_64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_universal.dmg",
-      "sha256": "a6a904d00be25509beb750966b202205a112ba0281c00650c60838977cadc3ab"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.10/PromptCast_0.0.10_universal.dmg",
+      "sha256": "0b6938085abb8e1927f85ddd40a590f386a42e2de3874fe173729ce9f105b1a2"
     },
     "windows-x86_64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.9/PromptCast_0.0.9_x64-setup.exe",
-      "sha256": "1df5321a66bd3bb45e9167983471f407591e02b44560e84602f21a16b23b8a8e"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.0.10/PromptCast_0.0.10_x64-setup.exe",
+      "sha256": "94bf86fe1c12b289d58641ad225516109d054fac0c4d7f856a0c4840cb0a23f6"
     }
   }
 }
