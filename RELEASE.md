@@ -63,6 +63,10 @@ macOS 的辅助功能(TCC)授权按 App 的**代码签名身份**记。ad-hoc �
   `sudo security add-trusted-cert ... -p codeSign` 信任为代码签名根（自签名必须这步，否则 codesign 报
   no identity found）；构建步通过环境变量 `APPLE_SIGNING_IDENTITY` 让 tauri 用该身份签名。Windows 忽略这些。
 
+GitHub 中的 PKCS12 容器使用 `PBE-SHA1-3DES` 和 SHA-1 MAC，以兼容 OpenSSL 3 与 macOS
+钥匙串。旧 RC2 容器会被 OpenSSL 3 拒绝，AES/SHA-256 容器可能被钥匙串拒绝。
+重新封装时复用原 `cert.pem` 和 `key.pem`，不要重新生成证书；封装算法不改变签名身份。
+
 ### 证书文件与备份（重要）
 私钥证书在本机 **`~/Desktop/promptcast-signing/`**（不在 git 里）：
 - `promptcast-codesign.p12`（含私钥）、`p12-password.txt`（密码）。
@@ -78,7 +82,7 @@ codesign -dvv /tmp/vm/*.app 2>&1 | grep Authority ; hdiutil detach /tmp/vm >/dev
 
 ### 重新生成 / 轮换证书（丢失或过期时）
 ```bash
-DIR=~/Desktop/LXG/promptcast-signing; mkdir -p "$DIR"; cd "$DIR"
+DIR=~/Desktop/promptcast-signing; mkdir -p "$DIR"; cd "$DIR"
 PASS=$(openssl rand -hex 16); echo "$PASS" > p12-password.txt
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 36500 -nodes \
   -subj "/CN=PromptCast Self-Signed/O=PromptCast/C=CN" \
@@ -86,7 +90,8 @@ openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 36500 -no
   -addext "keyUsage=critical,digitalSignature" \
   -addext "extendedKeyUsage=critical,codeSigning"
 openssl pkcs12 -export -inkey key.pem -in cert.pem -out promptcast-codesign.p12 \
-  -name "PromptCast Self-Signed" -passout pass:"$PASS"   # macOS 自带 LibreSSL：不要加 -legacy
+  -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1 \
+  -name "PromptCast Self-Signed" -passout pass:"$PASS"
 # 重新写入 Secret：
 base64 -i promptcast-codesign.p12 | gh secret set APPLE_CERTIFICATE --repo liuxiaogang-com/promptcast
 printf '%s' "$PASS" | gh secret set APPLE_CERTIFICATE_PASSWORD --repo liuxiaogang-com/promptcast
