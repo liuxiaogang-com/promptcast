@@ -3,6 +3,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { router } from "./router";
+import { initDisplay } from "./composables/useDisplay";
 import { initTheme } from "./composables/useTheme";
 import { configureLogger, installGlobalErrorHandlers, log } from "./utils/logger";
 
@@ -19,5 +20,6 @@ installGlobalErrorHandlers();
 log.info(`window booted: ${route}`);
 
 initTheme();
+void initDisplay().catch((e) => log.error(`display settings failed: ${e}`));
 
 createApp(App).use(createPinia()).use(router).mount("#app");

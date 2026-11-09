@@ -21,3 +21,6 @@ export const unregisterHotkey = () =>
 
 export const windowOpenPermissions = () =>
   invoke<{ label: string }>("window_open_permissions");
+
+export const windowOpenChangelog = () =>
+  invoke<{ label: string }>("window_open_changelog");

@@ -128,3 +128,8 @@ pub fn activate_window_by_handle(_handle: isize, _pid_fallback: Option<i32>) -> 
         false
     }
 }
+
+#[cfg(target_os = "macos")]
+pub fn paste_shortcut() -> Result<(), String> {
+    macos::paste_shortcut()
+}

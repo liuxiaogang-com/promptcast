@@ -29,3 +29,8 @@ input, textarea, select, button {
   font-family: inherit;
   font-size: inherit;
 }
+
+/* 文本控件保持可读尺寸，窄窗口交由布局换行和滚动。 */
+input, textarea, select { min-width: 0; max-width: 100%; }
+button { overflow-wrap: anywhere; }
+button svg { flex-shrink: 0; }

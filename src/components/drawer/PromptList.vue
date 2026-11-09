@@ -104,7 +104,7 @@ export default defineComponent({
 }
 .section-label {
   padding: 8px 4px 4px;
-  font-size: 10px;
+  font-size: var(--fs-10);
   font-weight: 600;
   letter-spacing: 0.6px;
   color: var(--text-tertiary);
@@ -121,15 +121,15 @@ export default defineComponent({
 }
 .empty .hint {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-10);
 }
 .empty-cta {
-  height: 32px;
+  min-height: calc(32px * var(--font-scale));
   padding: 0 14px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }

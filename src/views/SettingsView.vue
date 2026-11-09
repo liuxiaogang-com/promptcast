@@ -15,14 +15,15 @@ import FoldersPanel from "../components/settings/FoldersPanel.vue";
 import SitesPanel from "../components/settings/SitesPanel.vue";
 import DataPanel from "../components/settings/DataPanel.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
-import ReleaseNotes from "../components/ReleaseNotes.vue";
 import UpdateModal from "../components/UpdateModal.vue";
 
+import { FONT_SIZE_OPTIONS, applyFontScale } from "../composables/useDisplay";
 import { useSettingsStore } from "../stores/settings";
 import {
   registerHotkey,
   unregisterHotkey,
   windowOpenPermissions,
+  windowOpenChangelog,
 } from "../api/window";
 import {
   permissionsCheckAccessibility,
@@ -63,7 +64,7 @@ interface NavItem {
 export default defineComponent({
   name: "SettingsView",
   components: {
-    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal, ReleaseNotes,
+    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal,
     Sliders, Keyboard, Palette, FolderTree, Globe, Database,
     ShieldCheck, Info, FileText,
     Cloud, RefreshCw, LogOut,
@@ -72,13 +73,15 @@ export default defineComponent({
     return {
       tab: "general" as TabKey,
       hotkeyDraft: "",
+      hotkeyBusy: false,
+      displayBusy: false,
+      fontSizeOptions: FONT_SIZE_OPTIONS,
       accessibilityOk: true,
       isMacOS: isMac(),
       logsPath: "",
       appVer: "",
       // 更新（清单地址已预制在后端，不再可配置）
       updBusy: false,
-      showReleaseNotes: false,
       // 账户 / 同步
       emailDraft: "",
       passwordDraft: "",
@@ -117,7 +120,7 @@ export default defineComponent({
         { key: "general", label: "常规", icon: Sliders },
         { key: "account", label: "账户同步", icon: Cloud },
         { key: "hotkey", label: "快捷键", icon: Keyboard },
-        { key: "theme", label: "主题", icon: Palette },
+        { key: "theme", label: "显示", icon: Palette },
         { key: "folders", label: "分类管理", icon: FolderTree },
         { key: "sites", label: "网址快捷", icon: Globe },
         { key: "data", label: "数据", icon: Database },
@@ -164,6 +167,19 @@ export default defineComponent({
       await this.settings.set("theme", mode);
       setThemeMode(mode);
     },
+    async setFontScale(value: number) {
+      if (this.displayBusy) return;
+      this.displayBusy = true;
+      try {
+        await this.settings.set("font_scale", value);
+        applyFontScale(value);
+      } catch (e) {
+        log.error(`font scale save failed: ${e}`);
+        this.uiStore.pushToast("字号保存失败，请重试", "danger");
+      } finally {
+        this.displayBusy = false;
+      }
+    },
     async setDefaultAction(v: "inject" | "copy_only") {
       await this.settings.set("default_action", v);
     },
@@ -176,23 +192,24 @@ export default defineComponent({
     async setClipboardLimit(n: number) {
       await this.settings.set("clipboard_history_limit", n);
     },
-    async saveHotkey() {
+    async saveHotkey(value: string) {
+      if (this.hotkeyBusy) return;
+      this.hotkeyBusy = true;
+      this.hotkeyDraft = value;
       log.info(`saving hotkey: ${this.hotkeyDraft}`);
       try {
         if (this.hotkeyDraft) await registerHotkey(this.hotkeyDraft);
         else await unregisterHotkey();
         await this.settings.loadAll();
-        this.uiStore.pushToast("快捷键设置已保存", "success");
+        this.uiStore.pushToast(value ? "快捷键已保存" : "快捷键已清除", "success");
       } catch (e) {
         log.error(`register hotkey failed: ${e}`);
         this.uiStore.pushToast(String(e), "danger");
         await this.settings.loadAll();
+      } finally {
         this.hotkeyDraft = this.settings.data.hotkey ?? "";
+        this.hotkeyBusy = false;
       }
-    },
-    async clearHotkey() {
-      this.hotkeyDraft = "";
-      await this.saveHotkey();
     },
     async recheckAccess() {
       this.accessibilityOk = await permissionsCheckAccessibility();
@@ -206,6 +223,14 @@ export default defineComponent({
         await revealItemInDir(this.logsPath);
       } catch (e) {
         log.error(`open logs dir failed: ${e}`);
+      }
+    },
+    async openChangelog() {
+      try {
+        await windowOpenChangelog();
+      } catch (e) {
+        log.error(`open changelog failed: ${e}`);
+        this.uiStore.pushToast("无法打开版本日志窗口，请重试", "danger");
       }
     },
     // ---- 更新 ----
@@ -394,7 +419,7 @@ export default defineComponent({
               <select
                 :value="settings.data.clipboard_history_limit"
                 @change="(e) => setClipboardLimit(Number((e.target as HTMLSelectElement).value))"
-                style="height:30px;border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size:12px;padding:0 8px;"
+                style="min-height: calc(30px * var(--font-scale));border-radius:6px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text-primary);font-size: var(--fs-12);padding:0 8px;"
               >
                 <option :value="100">100</option>
                 <option :value="200">200</option>
@@ -563,25 +588,21 @@ export default defineComponent({
         <section v-if="tab === 'hotkey'" class="panel">
           <h3>全局唤起快捷键</h3>
           <p class="lead">
-            按下快捷键即可从任意应用中呼出抽屉。建议用三键组合避免冲突（如 ⌘⇧P / Ctrl+Shift+P）。
+            点击下方快捷键录制，按下组合键后自动保存，Esc 取消。建议使用 ⌘⇧P / Ctrl+Shift+P。
           </p>
           <div class="card">
             <div class="row">
               <div class="title">打开抽屉</div>
               <span class="spacer" />
-              <HotkeyRecorder v-model="hotkeyDraft" />
-            </div>
-            <div class="row">
-              <span class="spacer" />
-              <button class="ghost" @click="clearHotkey">清除</button>
-              <button class="primary" @click="saveHotkey">应用</button>
+              <HotkeyRecorder :model-value="hotkeyDraft" :disabled="hotkeyBusy" @update:model-value="saveHotkey" />
             </div>
           </div>
         </section>
 
         <!-- 主题 -->
         <section v-if="tab === 'theme'" class="panel">
-          <h3>主题</h3>
+          <h3>显示</h3>
+          <div class="title">主题</div>
           <div class="theme-row">
             <button
               class="theme-btn"
@@ -608,6 +629,16 @@ export default defineComponent({
               <span>深色</span>
             </button>
           </div>
+          <div class="title">字号</div>
+          <div class="theme-row">
+            <button v-for="option in fontSizeOptions" :key="option.value" class="theme-btn"
+              :class="{ on: settings.data.font_scale === option.value }"
+              :aria-pressed="settings.data.font_scale === option.value" :disabled="displayBusy"
+              @click="setFontScale(option.value)">
+              <span>{{ option.label }}</span>
+            </button>
+          </div>
+          <p class="lead">立即应用到所有窗口，重启后保留。</p>
         </section>
 
         <FoldersPanel v-if="tab === 'folders'" />
@@ -669,16 +700,13 @@ export default defineComponent({
                 <div class="sub">v{{ appVersion }} · MIT License</div>
               </div>
               <span class="spacer" />
-              <button class="ghost" :aria-expanded="showReleaseNotes" @click="showReleaseNotes = !showReleaseNotes">
+              <button class="ghost" @click="openChangelog">
                 <FileText :size="13" /> 版本日志
               </button>
               <button class="primary" :disabled="updBusy" @click="checkUpdates">
                 <RefreshCw :size="13" /> {{ updBusy ? "检查中…" : "检查更新" }}
               </button>
             </div>
-          </div>
-          <div v-if="showReleaseNotes" class="card">
-            <ReleaseNotes />
           </div>
           <div class="card">
             <div class="row">
@@ -715,18 +743,20 @@ export default defineComponent({
 }
 .body { flex: 1; display: flex; min-height: 0; }
 .nav {
-  width: 160px;
+  width: calc(160px * var(--font-scale));
+  flex-shrink: 0;
+  overflow-y: auto;
   padding: 12px 8px;
   background: var(--bg-base);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; gap: 2px;
 }
 .nav button {
-  height: 30px; padding: 0 10px;
+  min-height: calc(30px * var(--font-scale)); padding: 0 10px;
   border-radius: 6px;
   display: flex; align-items: center; gap: 8px;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .nav button:hover { background: var(--bg-hover); }
@@ -737,11 +767,11 @@ export default defineComponent({
   box-shadow: inset 2.5px 0 0 var(--accent);
 }
 
-.main { flex: 1; padding: 24px; overflow-y: auto; }
+.main { flex: 1; min-width: 0; padding: 24px; overflow-y: auto; }
 
 .panel { display: flex; flex-direction: column; gap: 12px; }
-.panel h3 { font-size: 14px; font-weight: 600; }
-.lead { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.panel h3 { font-size: var(--fs-14); font-weight: 600; }
+.lead { font-size: var(--fs-12); color: var(--text-secondary); line-height: 1.5; }
 
 .card {
   border: 1px solid var(--border);
@@ -750,13 +780,15 @@ export default defineComponent({
   background: var(--bg-base);
   display: flex; flex-direction: column; gap: 10px;
 }
-.row { display: flex; align-items: center; gap: 8px; }
-.title { font-size: 13px; font-weight: 500; }
-.sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.row > div { min-width: 0; overflow-wrap: anywhere; }
+.row button, .row .status, .switch { flex-shrink: 0; }
+.title { font-size: var(--fs-13); font-weight: 500; }
+.sub { font-size: var(--fs-11); color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
 .spacer { flex: 1; }
 .path {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--fs-10-5);
   color: var(--text-tertiary);
   background: var(--bg-input);
   padding: 6px 8px;
@@ -807,20 +839,21 @@ export default defineComponent({
 .switch input:checked + span { background: var(--accent); }
 .switch input:checked + span::after { left: 16px; }
 
-.theme-row { display: flex; gap: 12px; }
+.theme-row { display: flex; flex-wrap: wrap; gap: 12px; }
 .theme-btn {
-  width: 120px;
+  width: calc(120px * var(--font-scale));
+  max-width: 100%;
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-base);
   display: flex; flex-direction: column; gap: 8px; align-items: center;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
 }
 .theme-btn.on { border-color: var(--accent); border-width: 1.5px; }
 .card-prev {
-  width: 80px; height: 50px;
+  width: 80px; min-height: calc(50px * var(--font-scale));
   border-radius: 6px;
   display: flex; align-items: center; justify-content: center;
   font-weight: 700;
@@ -834,43 +867,44 @@ export default defineComponent({
 }
 
 .ghost {
-  height: 30px; padding: 0 12px;
+  min-height: calc(30px * var(--font-scale)); padding: 0 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-surface);
-  font-size: 12px;
+  font-size: var(--fs-12);
+  white-space: nowrap;
   color: var(--text-secondary);
   display: inline-flex; align-items: center; gap: 6px;
 }
 .ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
 .primary {
-  height: 30px; padding: 0 14px;
+  min-height: calc(30px * var(--font-scale)); padding: 0 14px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
 }
 
-.status { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 500; }
+.status { font-size: var(--fs-11); padding: 2px 8px; border-radius: 4px; font-weight: 500; }
 .status.ok { background: var(--accent-soft); color: var(--success); }
 .status.bad { background: var(--accent-soft); color: var(--danger); }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
-.flabel { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.flabel { font-size: var(--fs-11); font-weight: 600; color: var(--text-secondary); }
 .inp {
   flex: 1;
-  height: 32px; padding: 0 10px;
+  min-height: calc(32px * var(--font-scale)); padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-input);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
   outline: none;
 }
 .inp:focus { border-color: var(--accent); }
 .err {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--danger);
   background: var(--accent-soft);
   padding: 6px 10px;
@@ -881,13 +915,13 @@ export default defineComponent({
 .linklike {
   background: none;
   color: var(--accent);
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 0;
 }
 .linklike:hover { text-decoration: underline; }
 .divider { height: 1px; background: var(--border); margin: 4px 0; }
 .hint {
-  font-size: 11px;
+  font-size: var(--fs-11);
   padding: 8px 10px;
   background: var(--bg-hover);
   border-radius: 6px;

@@ -7,6 +7,7 @@ export type ThemeMode = "system" | "light" | "dark";
 export interface Settings {
   hotkey: string | null; // 例如 "CmdOrCtrl+Shift+P"
   theme: ThemeMode;
+  font_scale: number;
   default_action: DefaultAction;
   pin_default: boolean;
   sort_mode: SortMode;
@@ -19,6 +20,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   hotkey: "CmdOrCtrl+Shift+P",
   theme: "system",
+  font_scale: 1,
   default_action: "inject",
   pin_default: false,
   sort_mode: "recent_used",

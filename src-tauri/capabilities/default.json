@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "默认能力 — 全部窗口。",
-  "windows": ["drawer", "preview", "editor", "settings", "permissions"],
+  "windows": ["drawer", "preview", "editor", "settings", "permissions", "changelog"],
   "permissions": [
     "core:default",
     "core:window:default",

@@ -159,3 +159,75 @@ pub fn activate_app_by_pid(pid: i32) -> bool {
         activated
     }
 }
+
+// V 的两个事件都显式携带 Command，避免依赖异步 modifier 状态传播。
+const PASTE_KEYCODE: u16 = 0x09;
+const PASTE_FLAGS: u64 = 1 << 20;
+
+#[link(name = "ApplicationServices", kind = "framework")]
+extern "C" {
+    fn CGEventCreateKeyboardEvent(
+        source: *const std::ffi::c_void,
+        key: u16,
+        down: bool,
+    ) -> *mut std::ffi::c_void;
+    fn CGEventSetFlags(event: *mut std::ffi::c_void, flags: u64);
+    fn CGEventPost(tap: u32, event: *mut std::ffi::c_void);
+}
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    fn CFRelease(value: *const std::ffi::c_void);
+}
+
+pub fn paste_shortcut() -> Result<(), String> {
+    unsafe {
+        let down = create_paste_event(true);
+        let up = create_paste_event(false);
+        if down.is_null() || up.is_null() {
+            if !down.is_null() {
+                CFRelease(down);
+            }
+            if !up.is_null() {
+                CFRelease(up);
+            }
+            return Err("无法创建粘贴按键事件 · 已复制到剪贴板".into());
+        }
+        CGEventPost(0, down);
+        CGEventPost(0, up);
+        CFRelease(down);
+        CFRelease(up);
+    }
+    Ok(())
+}
+
+unsafe fn create_paste_event(down: bool) -> *mut std::ffi::c_void {
+    let event = CGEventCreateKeyboardEvent(std::ptr::null(), PASTE_KEYCODE, down);
+    if !event.is_null() {
+        CGEventSetFlags(event, PASTE_FLAGS);
+    }
+    event
+}
+
+#[cfg(test)]
+mod paste_tests {
+    use super::*;
+    extern "C" {
+        fn CGEventGetFlags(event: *const std::ffi::c_void) -> u64;
+        fn CGEventGetIntegerValueField(event: *const std::ffi::c_void, field: u32) -> i64;
+    }
+    #[test]
+    fn both_paste_events_carry_command_and_v_keycode() {
+        for down in [true, false] {
+            unsafe {
+                let event = create_paste_event(down);
+                assert!(!event.is_null());
+                assert_eq!(CGEventGetFlags(event), PASTE_FLAGS);
+                assert_eq!(
+                    CGEventGetIntegerValueField(event, 9),
+                    i64::from(PASTE_KEYCODE)
+                );
+                CFRelease(event);
+            }
+        }
+    }
+}

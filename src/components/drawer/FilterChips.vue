@@ -104,11 +104,11 @@ export default defineComponent({
 .chips {
   display: flex;
   gap: 6px;
-  padding: 0 12px 6px;
+  padding: 0 12px 8px;
+  flex-shrink: 0;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: thin; /* Firefox：细滚动条 */
-  border-bottom: 1px solid var(--border);
   background: var(--bg-titlebar);
 }
 /* 分类多到超出窗口时显示一条细横向滚动条，可左右滑动看到后面的分类。 */
@@ -121,7 +121,7 @@ export default defineComponent({
 
 .chip {
   flex-shrink: 0;
-  height: 24px;
+  min-height: calc(24px * var(--font-scale));
   padding: 0 10px;
   display: inline-flex;
   align-items: center;
@@ -130,7 +130,7 @@ export default defineComponent({
   background: var(--bg-surface);
   border: 1px solid var(--border);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 500;
   transition: all var(--dur-fast) var(--ease-out);
 }
@@ -142,7 +142,7 @@ export default defineComponent({
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }
-.chip .ico { font-size: 10px; }
-.chip .count { color: var(--text-tertiary); font-size: 10px; }
+.chip .ico { font-size: var(--fs-10); }
+.chip .count { color: var(--text-tertiary); font-size: var(--fs-10); }
 .chip.active .count { color: var(--accent-fg); opacity: 0.7; }
 </style>

@@ -9,6 +9,7 @@ use crate::models::settings::{DefaultAction, Settings, ThemeMode};
 const KEYS: &[&str] = &[
     "hotkey",
     "theme",
+    "font_scale",
     "default_action",
     "pin_default",
     "sort_mode",
@@ -64,6 +65,7 @@ pub fn get_all(conn: &Connection) -> AppResult<Settings> {
     let mut s = Settings {
         hotkey: Some("CmdOrCtrl+Shift+P".into()),
         theme: ThemeMode::System,
+        font_scale: 1.0,
         default_action: DefaultAction::Inject,
         pin_default: false,
         sort_mode: SortMode::RecentUsed,
@@ -77,6 +79,7 @@ pub fn get_all(conn: &Connection) -> AppResult<Settings> {
             match *key {
                 "hotkey" => s.hotkey = parse::<Option<String>>(&raw)?,
                 "theme" => s.theme = parse(&raw)?,
+                "font_scale" => s.font_scale = parse(&raw)?,
                 "default_action" => s.default_action = parse(&raw)?,
                 "pin_default" => s.pin_default = parse(&raw)?,
                 "sort_mode" => s.sort_mode = parse(&raw)?,
@@ -98,12 +101,36 @@ pub fn set(conn: &Connection, key: &str, value: &Value) -> AppResult<()> {
             "unknown settings key: {key}"
         )));
     }
+    if key == "font_scale" {
+        let scale = value
+            .as_f64()
+            .filter(|v| v.is_finite() && (1.0..=1.6).contains(v))
+            .ok_or_else(|| AppError::InvalidInput("字号比例必须在 1.0 到 1.6 之间".into()))?;
+        return write_value(conn, key, &scale);
+    }
     write_value(conn, key, value)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn font_scale_defaults_persists_and_rejects_invalid_values() {
+        let conn = crate::db::memory_conn();
+        assert_eq!(get_all(&conn).unwrap().font_scale, 1.0);
+        set(&conn, "font_scale", &serde_json::json!(1.2)).unwrap();
+        assert_eq!(get_all(&conn).unwrap().font_scale, 1.2);
+        for invalid in [
+            serde_json::json!(0),
+            serde_json::json!(2),
+            serde_json::json!("large"),
+            Value::Null,
+        ] {
+            assert!(set(&conn, "font_scale", &invalid).is_err());
+            assert_eq!(get_all(&conn).unwrap().font_scale, 1.2);
+        }
+    }
 
     #[test]
     fn fresh_settings_have_valid_default_hotkey() {

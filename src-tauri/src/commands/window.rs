@@ -145,3 +145,8 @@ pub fn window_open_permissions(app: AppHandle) -> AppResult<WindowInfo> {
         Err(AppError::InvalidInput("当前平台无需辅助功能授权".into()))
     }
 }
+
+#[tauri::command]
+pub fn window_open_changelog(app: AppHandle) -> AppResult<WindowInfo> {
+    show_singleton(&app, "changelog", Some("#/changelog"))
+}

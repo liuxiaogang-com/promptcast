@@ -53,7 +53,7 @@ export default defineComponent({
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 14px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   box-shadow: var(--shadow-md);
   max-width: 320px;
   cursor: pointer;

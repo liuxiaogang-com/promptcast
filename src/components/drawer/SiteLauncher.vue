@@ -54,7 +54,7 @@ export default defineComponent({
   border-top: 1px solid var(--border);
 }
 .site-btn {
-  width: 30px; height: 30px;
+  width: 30px; min-height: calc(30px * var(--font-scale));
   border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg-surface);
@@ -65,17 +65,17 @@ export default defineComponent({
 .site-btn:hover { transform: translateY(-1px); }
 .site-btn img { width: 18px; height: 18px; object-fit: contain; }
 .site-btn .placeholder {
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 700;
   color: var(--text-secondary);
 }
 .spacer { flex: 1; }
 .add-btn {
-  width: 30px; height: 30px;
+  width: 30px; min-height: calc(30px * var(--font-scale));
   border-radius: 7px;
   border: 1px dashed var(--border-strong);
   color: var(--text-tertiary);
-  font-size: 16px;
+  font-size: var(--fs-16);
   display: flex; align-items: center; justify-content: center;
 }
 .add-btn:hover { color: var(--text-primary); }

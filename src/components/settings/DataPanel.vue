@@ -111,7 +111,7 @@ export default defineComponent({
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 12px; }
-h3 { font-size: 14px; font-weight: 600; }
+h3 { font-size: var(--fs-14); font-weight: 600; }
 .card {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -120,21 +120,21 @@ h3 { font-size: 14px; font-weight: 600; }
   display: flex; flex-direction: column; gap: 12px;
 }
 .row {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
 }
-.title { font-size: 13px; font-weight: 500; }
-.sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
+.title { font-size: var(--fs-13); font-weight: 500; }
+.sub { font-size: var(--fs-11); color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
 .primary {
-  height: 30px;
+  min-height: calc(30px * var(--font-scale));
   padding: 0 14px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   flex-shrink: 0;
 }
 .primary:disabled { opacity: 0.5; }
-.radio { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.radio { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12); }
 .spacer { flex: 1; }
 </style>

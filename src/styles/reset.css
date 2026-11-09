@@ -14,7 +14,7 @@ body {
     "SF Pro Text", "Segoe UI", "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei",
     Helvetica, Arial, sans-serif;
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

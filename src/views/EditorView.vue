@@ -282,7 +282,7 @@ export default defineComponent({
   color: var(--text-primary);
 }
 .head {
-  height: 48px;
+  min-height: calc(48px * var(--font-scale));
   padding: 0 16px;
   display: flex;
   align-items: center;
@@ -292,8 +292,8 @@ export default defineComponent({
   -webkit-app-region: drag;
 }
 .hl { display: flex; align-items: center; gap: 8px; }
-.brand { font-weight: 600; font-size: 13px; }
-.dirty { font-size: 11px; color: var(--warning); }
+.brand { font-weight: 600; font-size: var(--fs-13); }
+.dirty { font-size: var(--fs-11); color: var(--warning); }
 .hr { -webkit-app-region: no-drag; }
 .body {
   flex: 1;
@@ -306,33 +306,33 @@ export default defineComponent({
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field.grow { flex: 1; min-height: 0; }
 .label {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.4px;
 }
 .title-input {
-  height: 40px;
+  min-height: calc(40px * var(--font-scale));
   padding: 0 12px;
   border: 1.5px solid var(--accent);
   border-radius: 8px;
   background: var(--bg-input);
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 500;
   color: var(--text-primary);
   box-shadow: var(--shadow-inner-input);
   outline: none;
 }
-.row { display: flex; gap: 12px; }
-.row .field { flex: 1; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.row .field { flex: 1 1 180px; min-width: 0; }
 .select {
-  height: 36px;
+  min-height: calc(36px * var(--font-scale));
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-surface);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
 .tag-input {
   min-height: 36px;
@@ -353,13 +353,13 @@ export default defineComponent({
   color: var(--text-primary);
   padding: 3px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
-.chip button { font-size: 11px; padding: 0 2px; color: var(--text-secondary); }
+.chip button { font-size: var(--fs-11); padding: 0 2px; color: var(--text-secondary); }
 .add-tag, .new-tag {
   border: 0;
   background: transparent;
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-tertiary);
   outline: none;
 }
@@ -368,7 +368,7 @@ export default defineComponent({
 .content-label-row {
   display: flex; align-items: center; justify-content: space-between;
 }
-.word { font-size: 10px; color: var(--text-tertiary); }
+.word { font-size: var(--fs-10); color: var(--text-tertiary); }
 .content-input {
   flex: 1;
   min-height: 200px;
@@ -377,7 +377,7 @@ export default defineComponent({
   border-radius: 8px;
   background: var(--bg-input-disabled);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.6;
   color: var(--text-primary);
   resize: none;
@@ -386,6 +386,8 @@ export default defineComponent({
 .loading { padding: 40px; color: var(--text-tertiary); text-align: center; }
 .footer {
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
@@ -394,11 +396,11 @@ export default defineComponent({
 }
 .spacer { flex: 1; }
 .ghost {
-  height: 32px; padding: 0 14px;
+  min-height: calc(32px * var(--font-scale)); padding: 0 14px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-surface);
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
@@ -407,11 +409,11 @@ export default defineComponent({
 .ghost:hover { background: var(--bg-hover); }
 .ghost.danger { border-color: transparent; color: var(--danger); }
 .primary {
-  height: 32px; padding: 0 16px;
+  min-height: calc(32px * var(--font-scale)); padding: 0 16px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
   display: inline-flex;

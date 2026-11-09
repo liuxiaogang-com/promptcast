@@ -132,16 +132,16 @@ export default defineComponent({
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.bulkbar .cnt { font-size: 11px; color: var(--text-secondary); }
+.bulkbar .cnt { font-size: var(--fs-11); color: var(--text-secondary); }
 .bulkbar .spacer { flex: 1; }
 .tbtn {
-  height: 24px;
+  min-height: calc(24px * var(--font-scale));
   padding: 0 10px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-surface);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--fs-11);
 }
 .tbtn:hover { background: var(--bg-hover); color: var(--text-primary); }
 .tbtn.danger { color: var(--danger); border-color: transparent; }
@@ -171,7 +171,7 @@ export default defineComponent({
 }
 .main { flex: 1; min-width: 0; }
 .text {
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   color: var(--text-primary);
   line-height: 1.45;
   display: -webkit-box;
@@ -180,10 +180,10 @@ export default defineComponent({
   overflow: hidden;
   word-break: break-word;
 }
-.meta { font-size: 10px; color: var(--text-tertiary); margin-top: 3px; }
+.meta { font-size: var(--fs-10); color: var(--text-tertiary); margin-top: 3px; }
 .actions { display: flex; gap: 2px; align-items: flex-start; flex-shrink: 0; }
 .ico-btn {
-  width: 26px; height: 26px;
+  width: 26px; min-height: calc(26px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 5px;
   color: var(--text-tertiary);
@@ -205,5 +205,5 @@ export default defineComponent({
   flex-direction: column;
   gap: 8px;
 }
-.empty .hint { font-size: 11px; }
+.empty .hint { font-size: var(--fs-11); }
 </style>

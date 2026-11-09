@@ -508,7 +508,7 @@ export default defineComponent({
 .sync-strip {
   flex-shrink: 0;
   text-align: center;
-  font-size: 10.5px;
+  font-size: var(--fs-10-5);
   padding: 3px 8px;
   cursor: pointer;
   color: var(--text-secondary);
@@ -539,7 +539,7 @@ export default defineComponent({
   text-align: left;
   padding: 7px 10px;
   border-radius: 5px;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   color: var(--text-primary);
 }
 .ctx-menu button:hover { background: var(--bg-hover); }

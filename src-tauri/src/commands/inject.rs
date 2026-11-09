@@ -11,6 +11,7 @@
 //   8) 异步线程 ~600ms 后还原原剪贴板
 use std::{thread, time::Duration};
 
+#[cfg(not(target_os = "macos"))]
 use enigo::{Direction, Enigo, Key, Keyboard, Settings as EnigoSettings};
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
@@ -99,7 +100,7 @@ fn schedule_clipboard_restore(prev: Option<String>, just_pasted: String, delay_m
 
 /// 轮询等待 `target_pid` 成为前台进程，最长等 `deadline`。
 /// 已是前台或超时即返回，之后再给渲染进程一点缓冲。比固定 sleep 稳得多。
-fn wait_until_foreground(target_pid: Option<i32>, deadline: Duration) {
+fn wait_until_foreground(target_pid: Option<i32>, deadline: Duration) -> bool {
     let step = Duration::from_millis(15);
     let mut waited = Duration::ZERO;
     loop {
@@ -112,15 +113,16 @@ fn wait_until_foreground(target_pid: Option<i32>, deadline: Duration) {
         if waited >= deadline {
             tracing::warn!(
                 ?deadline,
-                "target not frontmost before deadline; pasting anyway"
+                "target not frontmost before deadline; cancelling paste"
             );
-            break;
+            return false;
         }
         thread::sleep(step);
         waited += step;
     }
     // 焦点到位后给渲染进程（浏览器/Electron）一点缓冲再粘贴。
     thread::sleep(Duration::from_millis(40));
+    target_pid.is_some() && platform::frontmost_app_pid() == target_pid
 }
 
 #[tauri::command]
@@ -210,32 +212,35 @@ pub fn inject_paste(app: AppHandle, content: String) -> AppResult<InjectResult> 
     }
 
     // 6) 轮询等待目标真正到前台再粘贴（替代固定 120ms 死等，根治偶发「粘不上」）。
-    wait_until_foreground(target.pid, Duration::from_millis(450));
+    if !wait_until_foreground(target.pid, Duration::from_millis(450)) {
+        return Ok(InjectResult {
+            ok: false,
+            fallback: Some("clipboard".into()),
+            message: Some("目标窗口尚未就绪 · 已复制到剪贴板，请手动粘贴".into()),
+        });
+    }
 
-    // 7) Cmd/Ctrl+V —— 无论 'v' 是否出错都释放修饰键，避免 Cmd/Ctrl 卡在按下态。
-    let modifier = if cfg!(target_os = "macos") {
-        Key::Meta
-    } else {
-        Key::Control
-    };
-    fn do_paste(modifier: Key) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let result = platform::paste_shortcut();
+    #[cfg(not(target_os = "macos"))]
+    let result = (|| -> Result<(), String> {
         let mut e =
             Enigo::new(&EnigoSettings::default()).map_err(|err| format!("enigo init: {err}"))?;
-        e.key(modifier, Direction::Press)
+        e.key(Key::Control, Direction::Press)
             .map_err(|err| format!("press: {err}"))?;
-        // 'v' 出错也要继续释放修饰键；用 and 保留第一个错误。
         let v = e
             .key(Key::Unicode('v'), Direction::Click)
             .map_err(|err| format!("v: {err}"));
         let release = e
-            .key(modifier, Direction::Release)
+            .key(Key::Control, Direction::Release)
             .map_err(|err| format!("release: {err}"));
         v.and(release)
-    }
-    let result = do_paste(modifier);
+    })();
 
-    // 8) 不论成功失败都尝试还原剪贴板（粘贴失败时还原更应该）
-    schedule_clipboard_restore(prev_clipboard, content, CLIPBOARD_RESTORE_DELAY_MS);
+    // 失败时保留新内容，确保“已复制”回退仍可手动粘贴。
+    if result.is_ok() {
+        schedule_clipboard_restore(prev_clipboard, content, CLIPBOARD_RESTORE_DELAY_MS);
+    }
 
     match result {
         Ok(()) => {
@@ -279,4 +284,13 @@ pub fn permissions_request_accessibility() -> AppResult<bool> {
         }
     }
     Ok(trusted)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn missing_foreground_target_does_not_allow_paste() {
+        assert!(!wait_until_foreground(None, Duration::ZERO));
+    }
 }

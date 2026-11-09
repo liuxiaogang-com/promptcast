@@ -96,53 +96,54 @@ export default defineComponent({
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 14px; }
-.head { display: flex; gap: 12px; }
+.head { display: flex; flex-wrap: wrap; gap: 12px; }
 .hl { flex: 1; }
-.head h3 { font-size: 14px; font-weight: 600; }
-.sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
-.add-form { display: flex; gap: 6px; flex-shrink: 0; }
+.head h3 { font-size: var(--fs-14); font-weight: 600; }
+.sub { font-size: var(--fs-11); color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+.add-form { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
 .add-form input {
   width: 140px;
-  height: 30px;
+  min-height: calc(30px * var(--font-scale));
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-input);
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
   color: var(--text-primary);
 }
 .primary {
-  height: 30px;
+  min-height: calc(30px * var(--font-scale));
   padding: 0 12px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
 }
 .rows { display: flex; flex-direction: column; gap: 6px; }
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  height: 40px;
+  min-height: calc(40px * var(--font-scale));
   padding: 0 12px;
   background: var(--bg-base);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
 .grip { cursor: grab; color: var(--text-tertiary); flex-shrink: 0; }
-.name { font-size: 13px; }
+.name { overflow-wrap: anywhere; min-width: 0; font-size: var(--fs-13); }
 .spacer { flex: 1; }
 .ico {
-  width: 24px; height: 24px;
+  width: 24px; min-height: calc(24px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 5px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .ico:hover { background: var(--bg-hover); }
 .ico.danger { color: var(--danger); }
-.empty { font-size: 12px; color: var(--text-tertiary); padding: 16px; text-align: center; }
+.empty { font-size: var(--fs-12); color: var(--text-tertiary); padding: 16px; text-align: center; }
 </style>

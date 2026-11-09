@@ -22,7 +22,7 @@ export default defineComponent({
 
 <style scoped>
 .md {
-  font-size: 13px;
+  font-size: var(--fs-13);
   line-height: 1.7;
   color: var(--text-primary);
   word-break: break-word;
@@ -33,9 +33,9 @@ export default defineComponent({
   margin: 16px 0 6px;
   font-weight: 700;
 }
-.md :deep(h1) { font-size: 18px; }
-.md :deep(h2) { font-size: 15px; }
-.md :deep(h3) { font-size: 13px; }
+.md :deep(h1) { font-size: var(--fs-18); }
+.md :deep(h2) { font-size: var(--fs-15); }
+.md :deep(h3) { font-size: var(--fs-13); }
 .md :deep(p) { margin: 8px 0; }
 .md :deep(ul), .md :deep(ol) { padding-left: 20px; margin: 8px 0; }
 .md :deep(li) { margin: 2px 0; }
@@ -45,7 +45,7 @@ export default defineComponent({
   background: var(--bg-hover);
   padding: 2px 5px;
   border-radius: 4px;
-  font-size: 11.5px;
+  font-size: var(--fs-11-5);
 }
 .md :deep(pre) {
   background: var(--bg-hover);
@@ -57,7 +57,7 @@ export default defineComponent({
 .md :deep(pre code) {
   background: transparent;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 .md :deep(blockquote) {
   border-left: 3px solid var(--border-strong);

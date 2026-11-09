@@ -150,7 +150,7 @@ pub fn run() {
             // editor/preview/settings 是 tauri.conf 预声明的单例窗口，靠 show/hide 复用。
             // 关闭时若真的销毁，show_singleton 之后会 NotFound → 开一次就再也打不开。
             // 因此拦截 CloseRequested：阻止默认关闭，改为隐藏（覆盖前端 .close() 与原生关闭按钮）。
-            for label in ["editor", "preview", "settings", "permissions"] {
+            for label in ["editor", "preview", "settings", "permissions", "changelog"] {
                 if let Some(win) = app.get_webview_window(label) {
                     let hide_target = win.clone();
                     let app_h = app.handle().clone();
@@ -173,15 +173,15 @@ pub fn run() {
                             let app2 = app_h.clone();
                             let _ = app_h.run_on_main_thread(move || {
                                 let any_other_visible =
-                                    ["editor", "preview", "settings", "permissions"].iter().any(
-                                        |&l| {
+                                    ["editor", "preview", "settings", "permissions", "changelog"]
+                                        .iter()
+                                        .any(|&l| {
                                             l != closing.as_str()
                                                 && app2
                                                     .get_webview_window(l)
                                                     .and_then(|w| w.is_visible().ok())
                                                     .unwrap_or(false)
-                                        },
-                                    );
+                                        });
                                 if any_other_visible {
                                     return;
                                 }
@@ -324,6 +324,7 @@ pub fn run() {
             commands::window::window_open_preview,
             commands::window::window_open_editor,
             commands::window::window_open_settings,
+            commands::window::window_open_changelog,
             commands::clipboard::clipboard_list,
             commands::clipboard::clipboard_delete,
             commands::clipboard::clipboard_clear,

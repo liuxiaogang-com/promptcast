@@ -36,16 +36,18 @@ export default defineComponent({
 <style scoped>
 .hint-bar {
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
-  height: 28px;
+  min-height: calc(28px * var(--font-scale));
   padding: 0 12px;
   background: var(--bg-surface);
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-secondary);
 }
-.kbd { display: inline-flex; align-items: center; gap: 3px; }
+.kbd { white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
 .dot { color: var(--border-strong); }
 .spacer { flex: 1; }
 .count { color: var(--text-tertiary); }

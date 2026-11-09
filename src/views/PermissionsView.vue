@@ -165,28 +165,28 @@ export default defineComponent({
 <style scoped>
 .permission-guide { height: 100vh; overflow-y: auto; box-sizing: border-box; padding: 28px; background: var(--bg-surface); color: var(--text-primary); }
 .shield { color: var(--text-secondary); }
-h1 { font-size: 21px; margin: 12px 0; font-weight: 600; }
-.intro, ol, .hint, .dev-note { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+h1 { font-size: var(--fs-21); margin: 12px 0; font-weight: 600; }
+.intro, ol, .hint, .dev-note { font-size: var(--fs-13); line-height: 1.7; color: var(--text-secondary); }
 ol { padding-left: 20px; margin: 16px 0; }
 li + li { margin-top: 6px; }
-button { border-radius: 8px; padding: 9px 14px; cursor: pointer; font-size: 13px; }
+button { border-radius: 8px; padding: 9px 14px; cursor: pointer; font-size: var(--fs-13); }
 button:disabled { opacity: .5; cursor: default; }
 button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 .primary { background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); }
 .secondary { background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border-strong); }
 .open-settings { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-.drag-card { margin-top: 18px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--bg-base); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.drag-card { margin-top: 18px; border: 1px dashed var(--border-strong); border-radius: 12px; background: var(--bg-base); padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: var(--fs-12); color: var(--text-secondary); }
 .app-file { display: flex; flex-direction: column; align-items: center; gap: 8px; background: transparent; border: none; color: var(--text-primary); cursor: grab; user-select: none; }
 .app-file:active { cursor: grabbing; }
 .app-file img { width: 64px; height: 64px; pointer-events: none; }
-.text-button { border: none; background: transparent; color: var(--text-secondary); text-decoration: underline; padding: 4px; font-size: 12px; }
-.dev-note { padding: 10px; border-radius: 8px; background: var(--bg-hover); margin-top: 12px; font-size: 12px; }
-.hint { font-size: 12px; margin: 12px 0; }
+.text-button { border: none; background: transparent; color: var(--text-secondary); text-decoration: underline; padding: 4px; font-size: var(--fs-12); }
+.dev-note { padding: 10px; border-radius: 8px; background: var(--bg-hover); margin-top: 12px; font-size: var(--fs-12); }
+.hint { font-size: var(--fs-12); margin: 12px 0; }
  .shield.authorized { color: var(--success); }
 .permission-status { display: flex; align-items: flex-start; gap: 12px; padding: 16px; margin-top: 16px; border: 1px solid currentColor; border-radius: 12px; }
 .permission-status > svg { flex-shrink: 0; }
-.permission-status strong { font-size: 14px; }
-.permission-status p { font-size: 12px; line-height: 1.6; margin: 6px 0 0; overflow-wrap: anywhere; }
+.permission-status strong { font-size: var(--fs-14); }
+.permission-status p { font-size: var(--fs-12); line-height: 1.6; margin: 6px 0 0; overflow-wrap: anywhere; }
 .permission-status.denied { color: var(--warning); background: color-mix(in srgb, var(--warning) 9%, var(--bg-surface)); }
 .permission-status.granted { color: var(--success); background: color-mix(in srgb, var(--success) 10%, var(--bg-surface)); }
 .permission-status.error { color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--bg-surface)); }
@@ -195,6 +195,6 @@ button:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-.error { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+.error { color: var(--danger); font-size: var(--fs-12); overflow-wrap: anywhere; }
 footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 </style>

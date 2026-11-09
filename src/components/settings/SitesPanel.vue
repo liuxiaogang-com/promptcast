@@ -128,49 +128,50 @@ export default defineComponent({
 .panel { display: flex; flex-direction: column; gap: 14px; }
 .head { display: flex; align-items: flex-start; gap: 12px; }
 .hl { flex: 1; }
-.head h3 { font-size: 14px; font-weight: 600; }
-.sub { font-size: 11px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
+.head h3 { font-size: var(--fs-14); font-weight: 600; }
+.sub { font-size: var(--fs-11); color: var(--text-secondary); margin-top: 4px; line-height: 1.5; }
 
 .primary {
-  height: 30px;
+  min-height: calc(30px * var(--font-scale));
   padding: 0 12px;
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-fg);
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   flex-shrink: 0;
 }
 .primary:disabled { opacity: 0.5; }
 .ghost {
-  height: 30px; padding: 0 12px;
+  min-height: calc(30px * var(--font-scale)); padding: 0 12px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-surface);
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .add-form {
   display: grid;
-  grid-template-columns: 1fr 2fr auto auto;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   gap: 6px;
   padding: 12px;
   border: 1px dashed var(--border-strong);
   border-radius: 8px;
 }
 .add-form input {
-  height: 30px; padding: 0 10px;
+  min-height: calc(30px * var(--font-scale)); padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg-input);
   color: var(--text-primary);
   outline: none;
-  font-size: 12px;
+  font-size: var(--fs-12);
 }
 
 .rows { display: flex; flex-direction: column; gap: 6px; }
 .row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -180,44 +181,44 @@ export default defineComponent({
 }
 .grip { cursor: grab; color: var(--text-tertiary); flex-shrink: 0; }
 .ico-box {
-  width: 28px; height: 28px;
+  width: 28px; min-height: calc(28px * var(--font-scale));
   border-radius: 6px;
   background: var(--bg-surface);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
 .ico-box img { width: 18px; height: 18px; object-fit: contain; }
-.ico-box .ph { font-weight: 700; font-size: 12px; color: var(--text-secondary); }
+.ico-box .ph { font-weight: 700; font-size: var(--fs-12); color: var(--text-secondary); }
 .meta { min-width: 0; }
-.name { font-size: 13px; font-weight: 500; }
+.name { overflow-wrap: anywhere; min-width: 0; font-size: var(--fs-13); font-weight: 500; }
 .url {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .edit-name, .edit-url {
-  height: 28px;
+  min-height: calc(28px * var(--font-scale));
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0 10px;
   background: var(--bg-input);
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--fs-12);
   outline: none;
 }
 .edit-name { width: 120px; }
 .edit-url { flex: 1; }
 .spacer { flex: 1; }
 .ico {
-  width: 24px; height: 24px;
+  width: 24px; min-height: calc(24px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 5px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .ico:hover { background: var(--bg-hover); }
 .ico.danger { color: var(--danger); }
-.empty { font-size: 12px; color: var(--text-tertiary); padding: 16px; text-align: center; }
+.empty { font-size: var(--fs-12); color: var(--text-tertiary); padding: 16px; text-align: center; }
 </style>

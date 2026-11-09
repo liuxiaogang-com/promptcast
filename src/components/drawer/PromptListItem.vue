@@ -117,7 +117,7 @@ export default defineComponent({
 }
 .pin { color: var(--text-tertiary); }
 .title {
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -125,7 +125,7 @@ export default defineComponent({
   text-overflow: ellipsis;
 }
 .content {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-secondary);
   line-height: 1.4;
   display: -webkit-box;
@@ -140,7 +140,7 @@ export default defineComponent({
   flex-shrink: 0;
 }
 .ico-btn {
-  width: 26px; height: 26px;
+  width: 26px; min-height: calc(26px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 5px;
   color: var(--text-tertiary);

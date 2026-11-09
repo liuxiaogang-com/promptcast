@@ -165,7 +165,7 @@ export default defineComponent({
   gap: 8px;
 }
 .upd-badge {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 600;
   color: var(--accent-fg);
   background: var(--accent);
@@ -173,27 +173,27 @@ export default defineComponent({
   padding: 2px 7px;
 }
 .upd-ver {
-  font-size: 16px;
+  font-size: var(--fs-16);
   font-weight: 700;
   color: var(--text-primary);
 }
 .upd-cur {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-tertiary);
 }
 .upd-title {
   margin: 12px 0 2px;
-  font-size: 14px;
+  font-size: var(--fs-14);
   color: var(--text-primary);
 }
 .upd-date {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-tertiary);
 }
 .upd-err {
   margin-top: 10px;
-  font-size: 12.5px;
+  font-size: var(--fs-12-5);
   color: var(--danger);
 }
 .upd-prog {
@@ -220,20 +220,21 @@ export default defineComponent({
 }
 .ptext {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-secondary);
 }
 .upd-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
 }
 .upd-actions button {
-  height: 30px;
+  min-height: calc(30px * var(--font-scale));
   padding: 0 14px;
   border-radius: 7px;
-  font-size: 13px;
+  font-size: var(--fs-13);
   cursor: pointer;
   border: 1px solid var(--border);
 }

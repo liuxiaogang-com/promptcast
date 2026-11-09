@@ -4,6 +4,11 @@ import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-rou
 
 const routes: RouteRecordRaw[] = [
   {
+    path: "/changelog",
+    name: "changelog",
+    component: () => import("./views/ChangelogView.vue"),
+  },
+  {
     path: "/permissions",
     name: "permissions",
     component: () => import("./views/PermissionsView.vue"),

@@ -100,13 +100,16 @@ export default defineComponent({
       </div>
     </div>
     <div class="search-row">
-      <Search :size="14" class="search-icon" />
-      <input
-        :value="modelValue"
-        @input="onInput"
-        placeholder="搜索提示词…"
-      />
-      <span class="hint">{{ modSymbol }}F</span>
+      <label class="search-field">
+        <Search :size="14" class="search-icon" aria-hidden="true" />
+        <input
+          :value="modelValue"
+          @input="onInput"
+          aria-label="搜索提示词"
+          placeholder="搜索提示词…"
+        />
+        <span class="hint" aria-hidden="true">{{ modSymbol }}F</span>
+      </label>
     </div>
   </header>
 </template>
@@ -116,10 +119,9 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   background: var(--bg-titlebar);
-  border-bottom: 1px solid var(--border);
 }
 .title-row {
-  height: 44px;
+  min-height: calc(44px * var(--font-scale));
   padding: 0 8px 0 12px;
   display: flex;
   align-items: center;
@@ -129,14 +131,14 @@ export default defineComponent({
 }
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand-ico { color: var(--accent); }
-.brand .name { font-weight: 700; font-size: 13px; letter-spacing: 0.2px; }
+.brand .name { font-weight: 700; font-size: var(--fs-13); letter-spacing: 0.2px; }
 
 .actions {
   display: flex; align-items: center; gap: 2px;
   -webkit-app-region: no-drag;
 }
 .icon-btn {
-  width: 28px; height: 28px;
+  width: 28px; min-height: calc(28px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
   border-radius: 6px;
   color: var(--text-secondary);
@@ -147,43 +149,51 @@ export default defineComponent({
 .divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
 
 .primary-btn {
-  height: 28px;
+  min-height: calc(28px * var(--font-scale));
   padding: 0 12px;
   display: flex; align-items: center; gap: 4px;
   background: var(--accent);
   color: var(--accent-fg);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
   box-shadow: var(--shadow-sm);
 }
 .primary-btn:hover { opacity: 0.92; }
 
 .search-row {
-  height: 50px;
-  padding: 0 12px;
+  padding: 4px 12px 10px;
+  -webkit-app-region: no-drag;
+}
+.search-field {
   display: flex;
   align-items: center;
   gap: 8px;
-  -webkit-app-region: no-drag;
-}
-.search-row input {
-  flex: 1;
-  height: 32px;
-  padding: 0 8px;
+  min-height: calc(36px * var(--font-scale));
+  padding: 0 10px;
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: 8px;
+  box-shadow: var(--shadow-inner-input);
+  cursor: text;
+}
+.search-field:focus-within { border-color: var(--text-secondary); }
+.search-field input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  min-height: calc(34px * var(--font-scale));
+  padding: 0;
+  background: transparent;
+  border: 0;
   outline: none;
   color: var(--text-primary);
-  box-shadow: var(--shadow-inner-input);
-  font-size: 13px;
+  font-size: var(--fs-13);
 }
-.search-row input:focus { border-color: var(--text-secondary); }
 .search-icon { color: var(--text-tertiary); flex-shrink: 0; }
 .hint {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--fs-10);
   color: var(--text-tertiary);
   flex-shrink: 0;
 }
@@ -191,7 +201,7 @@ export default defineComponent({
 .sort-wrap { position: relative; }
 .sort-menu {
   position: absolute;
-  top: 32px; right: 0;
+  top: 100%; right: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -205,7 +215,7 @@ export default defineComponent({
   text-align: left;
   padding: 6px 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-primary);
 }
 .sort-menu button:hover { background: var(--bg-hover); }

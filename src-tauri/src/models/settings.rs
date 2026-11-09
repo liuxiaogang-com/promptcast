@@ -21,6 +21,7 @@ pub enum ThemeMode {
 pub struct Settings {
     pub hotkey: Option<String>,
     pub theme: ThemeMode,
+    pub font_scale: f64,
     pub default_action: DefaultAction,
     pub pin_default: bool,
     pub sort_mode: super::prompt::SortMode,
