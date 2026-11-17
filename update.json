@@ -1,20 +1,20 @@
 {
-  "version": "0.1.1",
-  "title": "剪贴板性能与滚动体验优化",
-  "notes": "- 剪贴板历史改为仅渲染可视区域附近的条目，图片缩略图按需加载，减少大量记录时的界面开销。\n- 复制新内容或重新唤起剪贴板时回到顶部，默认选中最新一条，方便快速查找和粘贴。\n- 普通列表刷新保留浏览位置与勾选状态，键盘上下导航可定位尚未渲染的历史条目。\n- 列表布局适配字号和窗口大小变化，macOS 与 Windows 使用同一套优化逻辑。\n\n本次更新不修改已有剪贴板内容、图片或数据库结构。",
-  "pub_date": "2026-11-17T08:34:35.962Z",
+  "version": "0.1.3",
+  "title": "独立更新窗口与列表体验修复",
+  "notes": "- 更新提醒改为独立窗口，应用在后台运行、主窗口隐藏时也能显示提醒。\n- 下载与安装分离：下载完成后等待用户点击“退出并安装”，不会自动打断使用；关闭更新窗口后可稍后继续安装。\n- 安装前重新校验已下载文件，文件变化或丢失时要求重新下载。\n- macOS 安装前后核对应用包版本，刷新应用路径注册并启动新实例，减少更新后误打开旧版本的情况。\n- 剪贴板文字、图片、加载中与加载失败状态均按实际内容计算高度，修复时间和类型下方的多余留白。\n- 全部、收藏和剪贴板的操作按钮默认隐藏且不占位，悬停或选中时显示。\n- 修复 macOS 滚动条拖动与窗口背景拖动冲突，抽屉仅顶部标题区域允许移动窗口。\n\n本次更新不修改已有内容、图片或数据库结构，也不增加使用统计。\n旧版客户端升级到本版本时仍使用旧版的安装流程；新的下载确认流程从运行本版本后生效。",
+  "pub_date": "2026-11-17T10:15:35.914Z",
   "downloads": {
     "darwin-aarch64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.1/PromptCast_0.1.1_universal.dmg",
-      "sha256": "7f2d007163eedde44be9d0764be97e70e27549c78c1d8c7e683f45804fc3d28a"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.3/PromptCast_0.1.3_universal.dmg",
+      "sha256": "f56d59467ed4e777feb5667e3d7e687ba4474313533ac1fd9f5bd4f43ea3bc34"
     },
     "darwin-x86_64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.1/PromptCast_0.1.1_universal.dmg",
-      "sha256": "7f2d007163eedde44be9d0764be97e70e27549c78c1d8c7e683f45804fc3d28a"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.3/PromptCast_0.1.3_universal.dmg",
+      "sha256": "f56d59467ed4e777feb5667e3d7e687ba4474313533ac1fd9f5bd4f43ea3bc34"
     },
     "windows-x86_64": {
-      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.1/PromptCast_0.1.1_x64-setup.exe",
-      "sha256": "2d8075ed796c390c51220c77fba0cd430bb697f7377a2cacf52c3ab9f6fcc760"
+      "url": "https://cnb.cool/liuxiaogang/promptcast/-/releases/download/v0.1.3/PromptCast_0.1.3_x64-setup.exe",
+      "sha256": "ac1fe3843407d041c543a0f2bef5c54383edffc8ebdccf7ea19fc4b41880b898"
     }
   }
 }
