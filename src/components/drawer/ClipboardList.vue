@@ -29,14 +29,14 @@ export default defineComponent({
     bulkCopy: (_ids: number[]) => true,
   },
   data() {
-    return { checked: [] as number[], scrollTop: 0, viewportHeight: 600, scale: 1, observer: null as ResizeObserver | null };
+    return { checked: [] as number[], scrollTop: 0, viewportHeight: 600, viewportWidth: 0, scale: 1, rowHeights: {} as Record<number, number>, observedRows: markRaw(new Set<HTMLElement>()), observer: null as ResizeObserver | null };
   },
   computed: {
     textOnly(): boolean { return !this.entries.some((c) => this.checked.includes(c.id) && c.image_id); },
     rows(): { entry: ClipEntry; top: number; height: number }[] {
       let top = 0;
       return this.entries.map((entry) => {
-        const height = (entry.image_id ? 184 : 88) * this.scale;
+        const height = this.rowHeights[entry.id] ?? (entry.image_id ? 184 : 88) * this.scale;
         const row = { entry, top, height };
         top += height;
         return row;
@@ -54,6 +54,7 @@ export default defineComponent({
     this.observer.observe(this.$refs.measure as HTMLElement);
     this.measure();
   },
+  updated() { this.measureRows(); },
   beforeUnmount() { this.observer?.disconnect(); },
   watch: {
     resetToken() { this.resetScroll(); },
@@ -69,9 +70,51 @@ export default defineComponent({
     measure() {
       const viewport = this.$refs.viewport as HTMLElement;
       const height = (this.$refs.measure as HTMLElement).getBoundingClientRect().height;
-      if (height > 0) this.scale = height / 100;
+      const scale = height > 0 ? height / 100 : this.scale;
+      if (scale !== this.scale || viewport.clientWidth !== this.viewportWidth) {
+        this.rowHeights = {};
+        this.scale = scale;
+        this.viewportWidth = viewport.clientWidth;
+      }
       if (viewport.clientHeight > 0) this.viewportHeight = viewport.clientHeight;
+      this.measureRows();
       this.setScroll(this.scrollTop);
+    },
+    measureRows() {
+      const viewport = this.$refs.viewport as HTMLElement | undefined;
+      if (!viewport) return;
+      const elements = new Set(viewport.querySelectorAll<HTMLElement>(".virtual-row"));
+      for (const element of this.observedRows) {
+        if (!elements.has(element)) {
+          this.observer?.unobserve(element);
+          this.observedRows.delete(element);
+        }
+      }
+      for (const element of elements) {
+        if (!this.observedRows.has(element)) {
+          this.observer?.observe(element);
+          this.observedRows.add(element);
+        }
+      }
+      const heights = { ...this.rowHeights };
+      let changed = false;
+      for (const element of elements) {
+        const id = Number(element.dataset.id);
+        const height = element.getBoundingClientRect().height;
+        if (height > 0 && heights[id] !== height) {
+          heights[id] = height;
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      // 测量屏幕附近的行后，保持当前可视条目的位置，避免高度修正导致跳动。
+      const anchor = this.rows.find((r) => r.top + r.height > this.scrollTop);
+      const offset = anchor ? this.scrollTop - anchor.top : 0;
+      this.rowHeights = heights;
+      if (anchor) {
+        const row = this.rows.find((r) => r.entry.id === anchor.entry.id);
+        if (row) this.setScroll(row.top + offset);
+      }
     },
     setScroll(top: number) {
       const viewport = this.$refs.viewport as HTMLElement | undefined;
@@ -120,7 +163,7 @@ export default defineComponent({
     <div ref="viewport" class="viewport" @scroll.passive="onScroll">
     <div ref="measure" class="measure" aria-hidden="true" />
     <div class="virtual-space" :style="{ height: `${totalHeight}px` }">
-    <div v-for="{ entry: c, top, height } in visibleRows" :key="c.id" :data-id="c.id" class="virtual-row" :style="{ top: `${top}px`, height: `${height}px` }">
+    <div v-for="{ entry: c, top } in visibleRows" :key="c.id" :data-id="c.id" class="virtual-row" :style="{ top: `${top}px` }">
       <div
         class="item"
         :class="{ selected: c.id === selectedId, checked: isChecked(c.id) }"
@@ -143,7 +186,7 @@ export default defineComponent({
           <button class="ico-btn" @click.stop="$emit('favorite', c.id)" title="保存并收藏"><Star :size="14" /></button>
           <button
             type="button"
-            class="ico-btn hover-only"
+            class="ico-btn"
             @click.stop="$emit('inject', c.id)"
             title="注入到上一个输入框 (Enter)"
           >
@@ -151,7 +194,7 @@ export default defineComponent({
           </button>
           <button
             type="button"
-            class="ico-btn hover-only del"
+            class="ico-btn del"
             @click.stop="$emit('delete', c.id)"
             title="删除"
           >
@@ -175,7 +218,7 @@ export default defineComponent({
 .measure { position: absolute; width: 0; height: calc(100px * var(--font-scale)); visibility: hidden; pointer-events: none; }
 .virtual-space { position: relative; }
 .virtual-row { position: absolute; left: 0; right: 0; }
-.virtual-row .item { height: 100%; box-sizing: border-box; overflow: hidden; }
+.virtual-row .item { box-sizing: border-box; overflow: hidden; }
 .main :deep(.local-image) { max-height: calc(130px * var(--font-scale)); }
 .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bulkbar {
@@ -240,7 +283,7 @@ export default defineComponent({
   word-break: break-word;
 }
 .meta { font-size: var(--fs-10); color: var(--text-tertiary); margin-top: 3px; }
-.actions { display: flex; gap: 2px; align-items: flex-start; flex-shrink: 0; }
+.actions { display: none; gap: 2px; align-items: flex-start; flex-shrink: 0; }
 .ico-btn {
   width: 26px; min-height: calc(26px * var(--font-scale));
   display: flex; align-items: center; justify-content: center;
@@ -253,9 +296,10 @@ export default defineComponent({
 .ico-btn svg, .ico-btn svg * { pointer-events: none; }
 .ico-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
 .ico-btn.del:hover { color: var(--danger); }
-.hover-only { opacity: 0; }
-.item:hover .hover-only,
-.item.selected .hover-only { opacity: 1; }
+.item:hover .actions,
+.item.selected .actions,
+.item.checked .actions,
+.item:focus-within .actions { display: flex; }
 .empty {
   padding: 50px 16px;
   text-align: center;

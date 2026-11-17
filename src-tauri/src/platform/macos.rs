@@ -80,7 +80,8 @@ pub fn apply_panel_style(window: &WebviewWindow) {
 
         let _: () = msg_send![ns_window, setHidesOnDeactivate: false];
         let _: () = msg_send![ns_window, setMovable: true];
-        let _: () = msg_send![ns_window, setMovableByWindowBackground: true];
+        // 内容区和滚动条不参与窗口拖动，标题区域由前端显式声明。
+        let _: () = msg_send![ns_window, setMovableByWindowBackground: false];
         // 窗口层级（浮动/正常）唯一由 window_set_pin → set_always_on_top 拥有。
         // 这里不再手写 setLevel —— 否则 pin/unpin 会与之争夺、导致取消钉住后层级漂移。
 

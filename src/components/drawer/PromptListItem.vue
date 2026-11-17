@@ -76,7 +76,7 @@ export default defineComponent({
       </button>
       <button
         type="button"
-        class="ico-btn hover-only"
+        class="ico-btn"
         @click="onEdit"
         title="编辑 (⌘E)"
       >
@@ -84,7 +84,7 @@ export default defineComponent({
       </button>
       <button
         type="button"
-        class="ico-btn inject-btn hover-only"
+        class="ico-btn inject-btn"
         @click="onInject"
         title="注入到上一个输入框 (Enter)"
       >
@@ -135,7 +135,7 @@ export default defineComponent({
   overflow: hidden;
 }
 .actions {
-  display: flex;
+  display: none;
   gap: 2px;
   align-items: flex-start;
   flex-shrink: 0;
@@ -160,7 +160,7 @@ export default defineComponent({
   background: var(--accent);
   color: var(--accent-fg);
 }
-.hover-only { opacity: 0; }
-.item:hover .hover-only,
-.item.selected .hover-only { opacity: 1; }
+.item:hover .actions,
+.item.selected .actions,
+.item:focus-within .actions { display: flex; }
 </style>

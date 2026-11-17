@@ -64,10 +64,10 @@ export default defineComponent({
 
 <template>
   <header class="search-bar">
-    <div class="title-row">
-      <div class="brand">
+    <div class="title-row" data-tauri-drag-region>
+      <div class="brand" data-tauri-drag-region>
         <Sparkle :size="14" class="brand-ico" />
-        <span class="name">PromptCast</span>
+        <span class="name" data-tauri-drag-region>PromptCast</span>
       </div>
       <div class="actions">
         <button
@@ -127,10 +127,9 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  -webkit-app-region: drag;
 }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand-ico { color: var(--accent); }
+.brand-ico { color: var(--accent); pointer-events: none; }
 .brand .name { font-weight: 700; font-size: var(--fs-13); letter-spacing: 0.2px; }
 
 .actions {
