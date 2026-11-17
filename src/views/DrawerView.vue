@@ -4,6 +4,7 @@
 -->
 <script lang="ts">
 import { defineComponent } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import SearchBar from "../components/drawer/SearchBar.vue";
@@ -66,6 +67,7 @@ export default defineComponent({
   data() {
     return {
       query: "",
+      clipResetToken: 0,
       clipSelectedId: null as number | null,
       ctxMenu: { visible: false, x: 0, y: 0, id: null as number | null },
       unlisteners: [] as UnlistenFn[],
@@ -150,8 +152,8 @@ export default defineComponent({
         this.prompts.select(list[0]?.id ?? null);
       }
     },
-    clipFiltered(list: ClipEntry[]) {
-      if (!list.find((c) => c.id === this.clipSelectedId)) {
+    clipFiltered(list: ClipEntry[], previous: ClipEntry[]) {
+      if (list[0]?.id !== previous[0]?.id || !list.find((c) => c.id === this.clipSelectedId)) {
         this.clipSelectedId = list[0]?.id ?? null;
       }
     },
@@ -197,6 +199,12 @@ export default defineComponent({
     openSettings() { void windowOpenSettings(); },
     async subscribeEvents() {
       this.unlisteners.push(
+        await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+          if (focused && this.isClip) {
+            this.clipSelectedId = this.clipFiltered[0]?.id ?? null;
+            this.clipResetToken++;
+          }
+        }),
         await listenAppEvent(EVT_PROMPTS_CHANGED, () => this.prompts.loadAll()),
         await listenAppEvent(EVT_FOLDERS_CHANGED, () => this.folders.loadAll()),
         await listenAppEvent(EVT_TAGS_CHANGED, () => this.tags.loadAll()),
@@ -468,6 +476,7 @@ export default defineComponent({
     <ClipboardList
       v-else
       :entries="clipFiltered"
+      :reset-token="clipResetToken"
       :selected-id="clipSelectedId"
       @inject="injectClip"
       @delete="deleteClip"

@@ -5,7 +5,7 @@
   单条操作：悬停出现注入按钮、垃圾桶删除按钮。
 -->
 <script lang="ts">
-import { defineComponent, type PropType } from "vue";
+import { defineComponent, markRaw, type PropType } from "vue";
 import LocalImage from "../LocalImage.vue";
 import { Trash2, ArrowRight, Star, Save } from "lucide-vue-next";
 import type { ClipEntry } from "../../types/clipboard";
@@ -16,6 +16,7 @@ export default defineComponent({
   components: { LocalImage, Trash2, ArrowRight, Star, Save },
   props: {
     entries: { type: Array as PropType<ClipEntry[]>, required: true },
+    resetToken: { type: Number, default: 0 },
     selectedId: { type: Number as PropType<number | null>, default: null },
   },
   emits: {
@@ -28,24 +29,63 @@ export default defineComponent({
     bulkCopy: (_ids: number[]) => true,
   },
   data() {
-    return { checked: [] as number[] };
+    return { checked: [] as number[], scrollTop: 0, viewportHeight: 600, scale: 1, observer: null as ResizeObserver | null };
   },
-  computed: { textOnly(): boolean { return !this.entries.some((c) => this.checked.includes(c.id) && c.image_id); } },
-  watch: {
-    selectedId(id: number | null) {
-      if (id == null) return;
-      this.$nextTick(() => {
-        const el = this.$el?.querySelector?.(`[data-id="${id}"]`) as HTMLElement | null;
-        el?.scrollIntoView({ block: "nearest" });
+  computed: {
+    textOnly(): boolean { return !this.entries.some((c) => this.checked.includes(c.id) && c.image_id); },
+    rows(): { entry: ClipEntry; top: number; height: number }[] {
+      let top = 0;
+      return this.entries.map((entry) => {
+        const height = (entry.image_id ? 184 : 88) * this.scale;
+        const row = { entry, top, height };
+        top += height;
+        return row;
       });
     },
+    totalHeight(): number { const last = this.rows[this.rows.length - 1]; return last ? last.top + last.height : 0; },
+    visibleRows(): { entry: ClipEntry; top: number; height: number }[] {
+      const margin = 3 * 184 * this.scale;
+      return this.rows.filter((r) => r.top + r.height > this.scrollTop - margin && r.top < this.scrollTop + this.viewportHeight + margin);
+    },
+  },
+  mounted() {
+    this.observer = markRaw(new ResizeObserver(() => this.measure()));
+    this.observer.observe(this.$refs.viewport as HTMLElement);
+    this.observer.observe(this.$refs.measure as HTMLElement);
+    this.measure();
+  },
+  beforeUnmount() { this.observer?.disconnect(); },
+  watch: {
+    resetToken() { this.resetScroll(); },
+    selectedId() { this.$nextTick(() => this.revealSelected()); },
     // 列表变化（如删除后重载）时，剔除已不存在的勾选项，避免“幽灵选中”。
-    entries(list: ClipEntry[]) {
+    entries(list: ClipEntry[], previous: ClipEntry[]) {
+      if (list[0]?.id !== previous[0]?.id) this.resetScroll();
       const ids = new Set(list.map((c) => c.id));
       this.checked = this.checked.filter((id) => ids.has(id));
     },
   },
   methods: {
+    measure() {
+      const viewport = this.$refs.viewport as HTMLElement;
+      const height = (this.$refs.measure as HTMLElement).getBoundingClientRect().height;
+      if (height > 0) this.scale = height / 100;
+      if (viewport.clientHeight > 0) this.viewportHeight = viewport.clientHeight;
+      this.setScroll(this.scrollTop);
+    },
+    setScroll(top: number) {
+      const viewport = this.$refs.viewport as HTMLElement | undefined;
+      this.scrollTop = Math.max(0, Math.min(top, this.totalHeight - this.viewportHeight));
+      if (viewport) viewport.scrollTop = this.scrollTop;
+    },
+    resetScroll() { this.setScroll(0); },
+    onScroll(event: Event) { this.scrollTop = (event.target as HTMLElement).scrollTop; },
+    revealSelected() {
+      const row = this.rows.find((r) => r.entry.id === this.selectedId);
+      if (!row) return;
+      if (row.top < this.scrollTop) this.setScroll(row.top);
+      else if (row.top + row.height > this.scrollTop + this.viewportHeight) this.setScroll(row.top + row.height - this.viewportHeight);
+    },
     preview(c: ClipEntry): string { return snippet(c.content, 100); },
     time(c: ClipEntry): string { return relativeTime(c.created_at); },
     isChecked(id: number): boolean { return this.checked.includes(id); },
@@ -77,7 +117,10 @@ export default defineComponent({
       <button type="button" class="tbtn danger" @click="bulkDelete">删除</button>
     </div>
 
-    <div v-for="c in entries" :key="c.id" :data-id="c.id">
+    <div ref="viewport" class="viewport" @scroll.passive="onScroll">
+    <div ref="measure" class="measure" aria-hidden="true" />
+    <div class="virtual-space" :style="{ height: `${totalHeight}px` }">
+    <div v-for="{ entry: c, top, height } in visibleRows" :key="c.id" :data-id="c.id" class="virtual-row" :style="{ top: `${top}px`, height: `${height}px` }">
       <div
         class="item"
         :class="{ selected: c.id === selectedId, checked: isChecked(c.id) }"
@@ -117,15 +160,24 @@ export default defineComponent({
         </div>
       </div>
     </div>
+    </div>
     <div v-if="!entries.length" class="empty">
       <p>暂无剪贴板记录</p>
-      <p class="hint">复制任意文本后会自动出现在这里</p>
+      <p class="hint">复制文本或图片后会自动出现在这里</p>
+    </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.list { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
+.list { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 8px 8px; }
+.viewport { flex: 1; min-height: 0; overflow-y: auto; overflow-anchor: none; position: relative; }
+.measure { position: absolute; width: 0; height: calc(100px * var(--font-scale)); visibility: hidden; pointer-events: none; }
+.virtual-space { position: relative; }
+.virtual-row { position: absolute; left: 0; right: 0; }
+.virtual-row .item { height: 100%; box-sizing: border-box; overflow: hidden; }
+.main :deep(.local-image) { max-height: calc(130px * var(--font-scale)); }
+.meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bulkbar {
   position: sticky;
   top: 0;
