@@ -1,83 +1,35 @@
 <script lang="ts">
 // UpdateModal — 发现新版本时的弹窗：标题 / 说明 / 下载进度 / 拉起安装器。
-// 由 useUpdateStore 驱动；在 DrawerView（启动静默查）与 SettingsView（手动查）都挂一份。
+// 只挂载于独立更新窗口，下载与确认安装分离。
 import { defineComponent } from "vue";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useUpdateStore } from "../stores/update";
-import { windowSetModalOpen } from "../api/window";
 import ReleaseNotes from "./ReleaseNotes.vue";
-import { isMac } from "../utils/format";
-
 export default defineComponent({
-  name: "UpdateModal",
   components: { ReleaseNotes },
-  data() {
-    return { modalActive: false };
-  },
   computed: {
-    store() {
-      return useUpdateStore();
+    store() { return useUpdateStore(); },
+    open(): boolean { return !!this.store.info; },
+    busy(): boolean { return this.store.downloading || this.store.installing || this.store.launched; },
+    date(): string {
+      const value = this.store.info?.pub_date;
+      if (!value) return "";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
     },
-    open(): boolean {
-      return this.store.visible && !!this.store.info;
-    },
-    launchedMsg(): string {
-      // macOS：自动替换并重启（无需手动拖拽）；Windows：跑安装器。文案如实区分。
-      return isMac()
-        ? "更新包已下载，应用将自动关闭并完成更新，随后重新打开，请稍候…"
-        : "安装程序已启动，请按提示完成安装。";
-    },
-  },
-  watch: {
-    // 弹窗出现时让抽屉「失焦不自动隐藏」，避免点别处把弹窗一起带走；关闭时撤销。
-    // 用独立的 modal-open 标志，不动用户的 pin 状态（见后端 window_set_modal_open）。
-    open(v: boolean) {
-      this.setModalOpen(v);
-    },
-  },
-  beforeUnmount() {
-    this.setModalOpen(false);
   },
   methods: {
-    isDrawer(): boolean {
-      try {
-        return getCurrentWebviewWindow().label === "drawer";
-      } catch {
-        return false;
-      }
-    },
-    setModalOpen(open: boolean): void {
-      // 仅抽屉有失焦自动隐藏；设置窗不需要。modalActive 去重，避免重复下发。
-      if (!this.isDrawer()) return;
-      if (open === this.modalActive) return;
-      this.modalActive = open;
-      void windowSetModalOpen(open).catch(() => {});
-    },
-    mb(bytes: number): string {
-      return (bytes / 1024 / 1024).toFixed(1);
-    },
-    install(): void {
-      void this.store.startInstall();
-    },
-    later(): void {
-      // 下载中不允许点背景/关闭，避免中断下载、丢掉进度监听。
-      if (this.store.downloading) return;
-      this.store.dismiss();
-    },
-    skip(): void {
-      if (this.store.downloading) return;
-      this.store.skipVersion();
-    },
-    ignoreToday(): void {
-      if (this.store.downloading) return;
-      this.store.ignoreToday();
-    },
+    mb(bytes: number): string { return (bytes / 1024 / 1024).toFixed(1); },
+    install() { void (this.store.ready ? this.store.startInstall() : this.store.startDownload()); },
+    later() { if (!this.store.installing) void getCurrentWebviewWindow().close(); },
+    skip() { if (!this.busy) { this.store.skipVersion(); this.later(); } },
+    ignoreToday() { if (!this.busy) { this.store.ignoreToday(); this.later(); } },
   },
 });
 </script>
 
 <template>
-  <div v-if="open" class="upd-overlay" @click.self="later">
+  <div v-if="open" class="upd-overlay">
     <div class="upd-card" role="dialog" aria-modal="true">
       <div class="upd-head">
         <span class="upd-badge">新版本</span>
@@ -86,7 +38,7 @@ export default defineComponent({
       </div>
 
       <h3 v-if="store.info!.title" class="upd-title">{{ store.info!.title }}</h3>
-      <div v-if="store.info!.pub_date" class="upd-date">{{ store.info!.pub_date }}</div>
+      <div v-if="store.info!.pub_date" class="upd-date">{{ date }}</div>
       <ReleaseNotes :version="store.info!.version" />
 
       <div v-if="store.error" class="upd-err">{{ store.error }}</div>
@@ -105,7 +57,7 @@ export default defineComponent({
         </div>
         <div class="ptext">
           <template v-if="store.launched">
-            {{ launchedMsg }}
+            正在退出应用并安装，请稍候…
           </template>
           <template v-else-if="store.progress.total">
             正在下载… {{ store.percent }}% ({{ mb(store.progress.downloaded) }} /
@@ -117,21 +69,12 @@ export default defineComponent({
         </div>
       </div>
 
+      <p v-if="store.ready && !store.launched" class="ptext">下载完成。请先保存正在编辑的内容，点击“退出并安装”后才会关闭应用。</p>
       <div class="upd-actions">
-        <template v-if="store.launched">
-          <button class="ghost" @click="later">关闭</button>
-        </template>
-        <template v-else>
-          <button class="ghost" :disabled="store.downloading" @click="skip">
-            跳过当前版本
-          </button>
-          <button class="ghost" :disabled="store.downloading" @click="ignoreToday">
-            今天忽略
-          </button>
-          <button class="primary" :disabled="store.downloading" @click="install">
-            {{ store.downloading ? "下载中…" : "立即更新" }}
-          </button>
-        </template>
+        <button class="ghost" :disabled="store.installing || store.launched" @click="later">稍后再说</button>
+        <button v-if="!store.ready" class="ghost" :disabled="busy" @click="skip">跳过当前版本</button>
+        <button v-if="!store.ready" class="ghost" :disabled="busy" @click="ignoreToday">今天忽略</button>
+        <button class="primary" :disabled="busy" @click="install">{{ store.installing || store.launched ? "正在安装…" : store.downloading ? "下载中…" : store.ready ? "退出并安装" : "下载更新" }}</button>
       </div>
     </div>
   </div>
@@ -145,18 +88,18 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--bg-surface);
   padding: 20px;
 }
 .upd-card {
   width: 100%;
-  max-width: 380px;
-  max-height: 80vh;
+  max-width: 100%;
+  max-height: 100%;
   overflow-y: auto;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   padding: 18px 18px 14px;
 }
 .upd-head {

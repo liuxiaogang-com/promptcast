@@ -3,6 +3,7 @@
 import { createRouter, createWebHashHistory, type RouteRecordRaw } from "vue-router";
 
 const routes: RouteRecordRaw[] = [
+  { path: "/update", name: "update", component: () => import("./views/UpdateView.vue") },
   {
     path: "/changelog",
     name: "changelog",

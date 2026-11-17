@@ -1,6 +1,6 @@
 #!/bin/sh
 # 只替换应用包，不访问 Application Support 中的用户数据库。
-DMG="$1"; APP="$2"; APP_PID="$3"; JOB="$4"
+DMG="$1"; APP="$2"; APP_PID="$3"; JOB="$4"; EXPECTED_VERSION="$5"
 STAGE=""; MNT=""
 exec >>"$JOB/install.log" 2>&1
 fail() { printf '%s\n' "$1" >"$JOB/error.txt"; exit 1; }
@@ -28,6 +28,7 @@ MNT=$(/usr/bin/mktemp -d "$JOB/mount.XXXXXX") || fail "Cannot create mount direc
 /usr/bin/hdiutil attach "$DMG" -readonly -nobrowse -noautoopen -mountpoint "$MNT" || fail "Cannot mount installer."
 set -- "$MNT"/*.app
 [ "$#" -eq 1 ] && [ -d "$1/Contents/MacOS" ] || fail "Installer must contain exactly one application."
+verify_app_version "$1" "$EXPECTED_VERSION" || fail "Installer version does not match the confirmed update."
 /usr/bin/ditto "$1" "$STAGE/new.app" || fail "Cannot stage new application; original is unchanged."
 /usr/bin/codesign --verify --deep --strict "$STAGE/new.app" || fail "New application signature is invalid."
 printf 'ready\n' >"$JOB/ready" || fail "Cannot notify application."
@@ -38,7 +39,10 @@ while kill -0 "$APP_PID" 2>/dev/null; do
   i=$((i+1))
 done
 replace_app "$APP" "$STAGE" || fail "Cannot replace application; original or backup has been preserved."
-if ! /usr/bin/open "$APP"; then
+verify_app_version "$APP" "$EXPECTED_VERSION" || fail "Installed version verification failed; previous application retained."
+# 明确刷新目标路径并启动新实例，不让 Launch Services 复用旧进程或旧包注册。
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || fail "Cannot register updated application."
+if ! /usr/bin/open -n "$APP"; then
   /bin/mv "$APP" "$STAGE/failed.app" || fail "Cannot move failed application aside; backup retained."
   /bin/mv "$STAGE/previous.app" "$APP" || fail "Automatic restore failed; backup retained."
   fail "New application could not launch; original restored."

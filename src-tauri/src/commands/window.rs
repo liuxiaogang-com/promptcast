@@ -150,3 +150,10 @@ pub fn window_open_permissions(app: AppHandle) -> AppResult<WindowInfo> {
 pub fn window_open_changelog(app: AppHandle) -> AppResult<WindowInfo> {
     show_singleton(&app, "changelog", Some("#/changelog"))
 }
+
+#[tauri::command]
+pub fn window_open_update(app: AppHandle) -> AppResult<WindowInfo> {
+    app.run_on_main_thread(crate::platform::activate_self)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    show_singleton(&app, "update", None)
+}

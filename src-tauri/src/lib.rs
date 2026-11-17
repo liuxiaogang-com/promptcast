@@ -12,7 +12,7 @@ mod update;
 use parking_lot::Mutex;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutEvent, ShortcutState};
 
 use crate::db::DbState;
@@ -150,7 +150,14 @@ pub fn run() {
             // editor/preview/settings 是 tauri.conf 预声明的单例窗口，靠 show/hide 复用。
             // 关闭时若真的销毁，show_singleton 之后会 NotFound → 开一次就再也打不开。
             // 因此拦截 CloseRequested：阻止默认关闭，改为隐藏（覆盖前端 .close() 与原生关闭按钮）。
-            for label in ["editor", "preview", "settings", "permissions", "changelog"] {
+            for label in [
+                "editor",
+                "preview",
+                "settings",
+                "permissions",
+                "changelog",
+                "update",
+            ] {
                 if let Some(win) = app.get_webview_window(label) {
                     let hide_target = win.clone();
                     let app_h = app.handle().clone();
@@ -169,19 +176,28 @@ pub fn run() {
                             // 规避 Windows 上 hide() 异步未即时生效的误判。
                             // makeKeyAndOrderFront(macOS) 是主线程 AppKit API，窗口事件不保证在主线程，
                             // 必须 dispatch 到主线程，否则 UB。
+                            if hide_target.label() == "update" {
+                                return;
+                            }
                             let closing = hide_target.label().to_string();
                             let app2 = app_h.clone();
                             let _ = app_h.run_on_main_thread(move || {
-                                let any_other_visible =
-                                    ["editor", "preview", "settings", "permissions", "changelog"]
-                                        .iter()
-                                        .any(|&l| {
-                                            l != closing.as_str()
-                                                && app2
-                                                    .get_webview_window(l)
-                                                    .and_then(|w| w.is_visible().ok())
-                                                    .unwrap_or(false)
-                                        });
+                                let any_other_visible = [
+                                    "editor",
+                                    "preview",
+                                    "settings",
+                                    "permissions",
+                                    "changelog",
+                                    "update",
+                                ]
+                                .iter()
+                                .any(|&l| {
+                                    l != closing.as_str()
+                                        && app2
+                                            .get_webview_window(l)
+                                            .and_then(|w| w.is_visible().ok())
+                                            .unwrap_or(false)
+                                });
                                 if any_other_visible {
                                     return;
                                 }
@@ -269,6 +285,17 @@ pub fn run() {
                 std::thread::spawn(move || clipboard_monitor_loop(handle));
             }
 
+            // 原生定时器不依赖隐藏 WebView 的 JS 定时器；偏好和忽略规则仍由前端检查。
+            {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_secs(30 * 60));
+                    if let Err(e) = handle.emit_to("drawer", "update-check-requested", ()) {
+                        tracing::warn!(error = %e, "update check notification failed");
+                    }
+                });
+            }
+
             // ---- 同步循环线程：登录+开启时，定时/获焦/手动触发跑一拍 ----
             {
                 let handle = app.handle().clone();
@@ -350,7 +377,10 @@ pub fn run() {
             commands::sync::sync_set_server_url,
             commands::update::update_check,
             commands::update::update_changelog,
-            commands::update::update_download_install,
+            commands::update::update_download,
+            commands::update::update_install,
+            commands::update::update_status,
+            commands::window::window_open_update,
             commands::update::update_get_manifest_url,
             commands::update::update_set_manifest_url,
         ])

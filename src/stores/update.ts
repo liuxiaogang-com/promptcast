@@ -1,11 +1,14 @@
 // stores/update.ts — 应用更新状态机。
 // 启动静默查（drawer）/ 手动查（设置）→ 有新版弹 UpdateModal → 下载（监听 update-progress）
-// → 后端拉起安装器。下载是阻塞后端命令，进度靠事件推。
+// → 下载完成等待用户确认 → 后端拉起安装器。
 import { defineStore } from "pinia";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   updateCheck,
-  updateDownloadInstall,
+  updateDownload,
+  updateInstall,
+  updateStatus,
+  windowOpenUpdate,
   updateGetManifestUrl,
   updateSetManifestUrl,
 } from "../api/update";
@@ -37,6 +40,8 @@ interface State {
   checking: boolean;
   downloading: boolean;
   launched: boolean;
+  ready: boolean;
+  installing: boolean;
   progress: UpdateProgress;
   error: string | null;
   manifestUrl: string;
@@ -53,6 +58,8 @@ export const useUpdateStore = defineStore("update", {
     checking: false,
     downloading: false,
     launched: false,
+    ready: false,
+    installing: false,
     progress: { downloaded: 0, total: null },
     error: null,
     manifestUrl: "",
@@ -101,13 +108,13 @@ export const useUpdateStore = defineStore("update", {
           // 手动查（设置页「检查更新」）一律照常弹，让用户随时能更新被跳过的版本。
           const suppressed =
             !manual &&
-            (info.version === this.skippedVersion ||
-              this.ignoredDate === todayStr());
+            (info.version === lsGet(LS_SKIP) ||
+              lsGet(LS_IGNORE) === todayStr());
           if (suppressed) return false;
           // 复位上一轮下载残留，否则二次弹窗会带着 launched=true / 旧进度条出现。
           this.launched = false;
           this.progress = { downloaded: 0, total: null };
-          this.visible = true;
+          await windowOpenUpdate();
           return true;
         }
         return false;
@@ -119,25 +126,29 @@ export const useUpdateStore = defineStore("update", {
         this.checking = false;
       }
     },
-    async startInstall(): Promise<void> {
+    async refresh(): Promise<void> {
+      const status = await updateStatus();
+      this.info = status.info;
+      this.ready = status.ready;
+      this.visible = !!status.info;
+    },
+    async startDownload(): Promise<void> {
       if (this.downloading || !this.info) return;
       this.downloading = true;
       this.launched = false;
       this.error = null;
       this.progress = { downloaded: 0, total: null };
       // 监听进度（一次性绑定，下载结束/出错后解绑）。
-      if (!this.unlisten) {
-        this.unlisten = await listen<UpdateProgress>(
-          EVT_UPDATE_PROGRESS,
-          (e) => {
-            this.progress = e.payload;
-          },
-        );
-      }
       try {
-        await updateDownloadInstall(this.info.version);
-        // 命令返回 = 安装器已拉起（Windows setup/msi、macOS dmg 已打开）。
-        this.launched = true;
+        if (!this.unlisten) {
+          this.unlisten = await listen<UpdateProgress>(
+            EVT_UPDATE_PROGRESS,
+            (e) => { this.progress = e.payload; },
+          );
+        }
+        await updateDownload(this.info.version);
+        // 下载成功只标记就绪，不安装、不退出应用。
+        this.ready = true;
       } catch (e) {
         this.error = String(e);
       } finally {
@@ -147,6 +158,18 @@ export const useUpdateStore = defineStore("update", {
           this.unlisten = null;
         }
       }
+    },
+    async startInstall(): Promise<void> {
+      if (!this.ready || !this.info || this.downloading || this.installing) return;
+      this.installing = true;
+      this.error = null;
+      try {
+        await updateInstall(this.info.version);
+        this.launched = true;
+      } catch (e) {
+        this.error = String(e);
+        try { await this.refresh(); } catch (statusError) { this.error += `；状态刷新失败：${statusError}`; }
+      } finally { this.installing = false; }
     },
     /** 开/关自动检查更新。关闭后启动与每 30 分钟的静默查都不再执行；手动「检查更新」不受影响。 */
     setAutoCheckEnabled(on: boolean): void {

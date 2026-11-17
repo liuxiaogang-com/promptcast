@@ -1,6 +1,6 @@
 [package]
 name = "prompt-manager"
-version = "0.1.2"
+version = "0.1.3"
 description = "Prompt Hub — cross-platform prompt manager with global hotkey injection."
 authors = ["xiao"]
 edition = "2021"

@@ -14,7 +14,6 @@ import ClipboardList from "../components/drawer/ClipboardList.vue";
 import SiteLauncher from "../components/drawer/SiteLauncher.vue";
 import HintBar from "../components/drawer/HintBar.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
-import UpdateModal from "../components/UpdateModal.vue";
 
 import { usePromptsStore } from "../stores/prompts";
 import { useFoldersStore } from "../stores/folders";
@@ -62,7 +61,7 @@ import type { SyncStatus } from "../types/sync";
 export default defineComponent({
   name: "DrawerView",
   components: {
-    SearchBar, FilterChips, PromptList, ClipboardList, SiteLauncher, HintBar, BaseToast, UpdateModal,
+    SearchBar, FilterChips, PromptList, ClipboardList, SiteLauncher, HintBar, BaseToast,
   },
   data() {
     return {
@@ -71,7 +70,6 @@ export default defineComponent({
       clipSelectedId: null as number | null,
       ctxMenu: { visible: false, x: 0, y: 0, id: null as number | null },
       unlisteners: [] as UnlistenFn[],
-      updTimer: null as ReturnType<typeof setInterval> | null,
     };
   },
   computed: {
@@ -186,12 +184,9 @@ export default defineComponent({
     await this.subscribeEvents();
     // 启动静默查更新（无新版/出错都不打扰）；有新版且未被「跳过/今天忽略」才弹 UpdateModal。
     void this.updateStore.check(false);
-    // 之后每 30 分钟静默查一次。抽屉窗常驻（隐藏时 JS 定时器照跑），适合做轮询源。
-    this.updTimer = setInterval(() => { void this.updateStore.check(false); }, 30 * 60 * 1000);
   },
   beforeUnmount() {
     document.removeEventListener("keydown", this.onKey);
-    if (this.updTimer) { clearInterval(this.updTimer); this.updTimer = null; }
     for (const u of this.unlisteners) u();
   },
   methods: {
@@ -205,6 +200,7 @@ export default defineComponent({
             this.clipResetToken++;
           }
         }),
+        await listenAppEvent("update-check-requested", () => { void this.updateStore.check(false); }),
         await listenAppEvent(EVT_PROMPTS_CHANGED, () => this.prompts.loadAll()),
         await listenAppEvent(EVT_FOLDERS_CHANGED, () => this.folders.loadAll()),
         await listenAppEvent(EVT_TAGS_CHANGED, () => this.tags.loadAll()),
@@ -498,7 +494,6 @@ export default defineComponent({
       {{ syncBadge.label }}
     </div>
     <BaseToast />
-    <UpdateModal />
 
     <!-- 列表右键菜单 -->
     <div

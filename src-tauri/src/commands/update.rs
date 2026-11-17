@@ -38,13 +38,17 @@ pub async fn update_check(db: State<'_, DbState>) -> AppResult<Option<UpdateInfo
         // 未配置地址不算错误：静默当作“无更新”，避免启动自动查时弹错。
         return Ok(None);
     }
-    run_blocking(move || update::check(&url)).await
+    let info = run_blocking(move || update::check(&url)).await?;
+    if let Some(ref value) = info {
+        update::remember(value.clone());
+    }
+    Ok(info)
 }
 
-/// 下载本平台安装包（带进度事件 update-progress）并拉起安装器。
+/// 下载本平台安装包（带进度事件 update-progress），仅保存待安装状态。
 /// 不接收前端传的 url —— 后端按当前平台重新读清单，避免被骗下载任意二进制。
 #[tauri::command]
-pub async fn update_download_install(
+pub async fn update_download(
     app: AppHandle,
     db: State<'_, DbState>,
     expected_version: String,
@@ -53,7 +57,17 @@ pub async fn update_download_install(
     if url.is_empty() {
         return Err(map_err(update::UpdateError::NotConfigured));
     }
-    run_blocking(move || update::download_and_install(&app, &url, &expected_version)).await
+    run_blocking(move || update::download(&app, &url, &expected_version)).await
+}
+
+#[tauri::command]
+pub async fn update_install(app: AppHandle, expected_version: String) -> AppResult<()> {
+    run_blocking(move || update::install(&app, &expected_version)).await
+}
+
+#[tauri::command]
+pub fn update_status() -> update::UpdateStatus {
+    update::status()
 }
 
 #[tauri::command]

@@ -15,7 +15,6 @@ import FoldersPanel from "../components/settings/FoldersPanel.vue";
 import SitesPanel from "../components/settings/SitesPanel.vue";
 import DataPanel from "../components/settings/DataPanel.vue";
 import BaseToast from "../components/ui/BaseToast.vue";
-import UpdateModal from "../components/UpdateModal.vue";
 
 import { FONT_SIZE_OPTIONS, applyFontScale } from "../composables/useDisplay";
 import { useSettingsStore } from "../stores/settings";
@@ -64,7 +63,7 @@ interface NavItem {
 export default defineComponent({
   name: "SettingsView",
   components: {
-    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast, UpdateModal,
+    HotkeyRecorder, FoldersPanel, SitesPanel, DataPanel, BaseToast,
     Sliders, Keyboard, Palette, FolderTree, Globe, Database,
     ShieldCheck, Info, FileText,
     Cloud, RefreshCw, LogOut,
@@ -729,7 +728,6 @@ export default defineComponent({
       </main>
     </div>
     <BaseToast />
-    <UpdateModal />
   </div>
 </template>
 

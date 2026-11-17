@@ -31,3 +31,16 @@ for (const blocked of [false, true]) {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 }
+
+test("macOS 安装版本核对拒绝旧包，接受目标版本", () => {
+  const root = mkdtempSync(join(tmpdir(), "promptcast-version-test-"));
+  try {
+    const app = join(root, "Prompt Cast.app");
+    mkdirSync(join(app, "Contents"), { recursive: true });
+    writeFileSync(join(app, "Contents", "Info.plist"), '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleShortVersionString</key><string>0.1.2</string></dict></plist>');
+    for (const version of ["0.1.1", "0.1.2"]) {
+      const result = spawnSync("/bin/sh", ["-c", '. "$1"; verify_app_version "$2" "$3"', "test", script, app, version]);
+      assert.equal(result.status, version === "0.1.2" ? 0 : 1, result.stderr.toString());
+    }
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

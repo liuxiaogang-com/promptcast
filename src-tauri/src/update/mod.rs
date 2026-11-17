@@ -26,9 +26,55 @@ const PROGRESS_EVENT: &str = "update-progress";
 pub const DEFAULT_MANIFEST_URL: &str = "https://go.liuxiaogang.com/promptcast-update";
 pub const CHANGELOG_URL: &str = "https://go.liuxiaogang.com/promptcast-changelog";
 
-// 同一时刻只允许一个下载在跑：清单/资产下载是固定临时路径，且更新窗在 drawer 与 settings
-// 两个 webview 各挂一份；两窗并发下载会抢同一个文件、进度也会串。compare_exchange 占坑。
+// 下载和安装共享互斥状态；待安装包仅由后端保存路径，前端不能指定可执行文件。
 static DOWNLOADING: AtomicBool = AtomicBool::new(false);
+static SESSION: parking_lot::Mutex<UpdateSession> = parking_lot::Mutex::new(UpdateSession {
+    info: None,
+    prepared: None,
+});
+
+struct UpdateSession {
+    info: Option<UpdateInfo>,
+    prepared: Option<(String, PathBuf, String)>,
+}
+
+#[derive(Serialize)]
+pub struct UpdateStatus {
+    info: Option<UpdateInfo>,
+    ready: bool,
+    busy: bool,
+}
+
+pub fn status() -> UpdateStatus {
+    let session = SESSION.lock();
+    UpdateStatus {
+        info: session.info.clone(),
+        ready: session.prepared.is_some(),
+        busy: DOWNLOADING.load(Ordering::SeqCst),
+    }
+}
+
+pub fn remember(info: UpdateInfo) {
+    let mut session = SESSION.lock();
+    if !DOWNLOADING.load(Ordering::SeqCst) && session.prepared.is_none() {
+        session.info = Some(info);
+    }
+}
+
+struct UpdateGuard(bool);
+impl Drop for UpdateGuard {
+    fn drop(&mut self) {
+        if !self.0 {
+            DOWNLOADING.store(false, Ordering::SeqCst);
+        }
+    }
+}
+fn update_guard() -> Result<UpdateGuard, UpdateError> {
+    DOWNLOADING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .map_err(|_| UpdateError::Busy)?;
+    Ok(UpdateGuard(false))
+}
 
 #[derive(Debug)]
 pub enum UpdateError {
@@ -443,32 +489,11 @@ fn launch_installer(path: &std::path::Path) -> Result<(), UpdateError> {
         .map_err(|e| UpdateError::Launch(e.to_string()))
 }
 
-/// 下载并拉起安装器。重新读清单按当前平台取链接（不信任前端传值）。
+/// 仅下载并保存待安装状态。重新读清单按当前平台取链接（不信任前端传值）。
 /// 入参是已解析好的清单地址；同 `check`，调用方必须先释放 DbState 锁再调（下载长达数分钟，
 /// 持锁会冻结整库）。
-pub fn download_and_install(
-    app: &AppHandle,
-    url: &str,
-    expected_version: &str,
-) -> Result<(), UpdateError> {
-    // 占坑：已有下载在跑就直接拒，避免两窗抢同一临时文件 / 进度串台。
-    if DOWNLOADING
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return Err(UpdateError::Busy);
-    }
-    // 守卫：任何返回路径（含 ?）都会 drop 它，复位标志，不会卡死后续下载。
-    struct Guard(bool);
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            if !self.0 {
-                DOWNLOADING.store(false, Ordering::SeqCst);
-            }
-        }
-    }
-    let mut guard = Guard(false);
-
+pub fn download(app: &AppHandle, url: &str, expected_version: &str) -> Result<(), UpdateError> {
+    let _guard = update_guard()?;
     let m = fetch_manifest(url)?;
     // 清单换版后要求重新确认，不能展示 A 却安装 B。
     if m.version != expected_version || !is_newer(&m.version, current_version()) {
@@ -479,12 +504,53 @@ pub fn download_and_install(
         .get(&platform_key())
         .ok_or_else(|| UpdateError::NoAsset(platform_key()))?;
     let path = download_asset(app, asset)?;
-    tracing::info!(path = %path.display(), "update downloaded");
+    let checksum = file_checksum(&path)?;
+    SESSION.lock().prepared = Some((m.version, path, checksum));
+    Ok(())
+}
+
+fn file_checksum(path: &std::path::Path) -> Result<String, UpdateError> {
+    let mut file = std::fs::File::open(path).map_err(|e| UpdateError::Io(e.to_string()))?;
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = file
+            .read(&mut buffer)
+            .map_err(|e| UpdateError::Io(e.to_string()))?;
+        if n == 0 {
+            break;
+        }
+        hash.update(&buffer[..n]);
+    }
+    Ok(hex_lower(&hash.finalize()))
+}
+
+pub fn install(app: &AppHandle, expected_version: &str) -> Result<(), UpdateError> {
+    let mut guard = update_guard()?;
+    let (version, path, checksum) = SESSION
+        .lock()
+        .prepared
+        .clone()
+        .ok_or_else(|| UpdateError::Parse("请先下载安装包".into()))?;
+    if version != expected_version {
+        return Err(UpdateError::Parse(
+            "安装版本与确认版本不一致，请重新检查更新".into(),
+        ));
+    }
+    match file_checksum(&path) {
+        Ok(actual) if actual == checksum => {}
+        _ => {
+            SESSION.lock().prepared = None;
+            return Err(UpdateError::Checksum(
+                "安装包已变化或丢失，请重新下载".into(),
+            ));
+        }
+    }
     #[cfg(target_os = "macos")]
     {
         if let Some(bundle) = current_app_bundle() {
             tracing::info!(bundle = %bundle.display(), "scheduling macOS self-update");
-            macos_self_update(app, &path, &bundle)?;
+            macos_self_update(app, &path, &bundle, &version)?;
             guard.0 = true; // 已安排退出，拒绝第二个安装任务直到进程结束。
             return Ok(());
         }
@@ -523,6 +589,7 @@ fn macos_self_update(
     app: &AppHandle,
     dmg: &std::path::Path,
     bundle: &std::path::Path,
+    version: &str,
 ) -> Result<(), UpdateError> {
     let job = update_job_dir()?;
     let script_path = job.join("install.sh");
@@ -534,6 +601,7 @@ fn macos_self_update(
         .arg(bundle)
         .arg(std::process::id().to_string())
         .arg(&job)
+        .arg(version)
         .spawn()
         .map_err(|e| UpdateError::Launch(e.to_string()))?;
     wait_for_update_helper(child, &job)?;
