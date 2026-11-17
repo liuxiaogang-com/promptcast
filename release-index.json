@@ -1,6 +1,38 @@
 {
   "releases": [
     {
+      "version": "0.1.2",
+      "title": "列表布局与窗口拖动修复",
+      "notes": "- 剪贴板文字、图片及图片加载状态统一按实际内容计算行高，去掉时间和类型下方的多余留白。\n- 图片加载、字号或窗口大小变化后自动更新列表位置，保留按需渲染与滚动定位。\n- 全部、收藏和剪贴板的操作按钮默认隐藏且不占位，悬停或选中时显示。\n- 修复 macOS 滚动条拖动与窗口背景拖动冲突，抽屉仅顶部标题区域允许移动窗口。\n- 标题拖动使用 Tauri 的显式拖动区域，兼容 macOS 和 Windows。\n\n本次更新不修改已有内容、图片或数据库结构。",
+      "pub_date": "2026-11-17T09:55:04.910Z",
+      "assets": [
+        {
+          "name": "PromptCast_0.1.2_universal.dmg",
+          "size": 18919714,
+          "sha256": "28b42bf0187efe076d76be86de1bc0bb230a584d0ea394f5e18dbed6e9dc2044"
+        },
+        {
+          "name": "PromptCast_0.1.2_x64-setup.exe",
+          "size": 5565926,
+          "sha256": "38af93eb69fd2a80a5a6a151204ee36572857f5002cf31194ea8bf26650e127b"
+        }
+      ],
+      "downloads": {
+        "darwin-aarch64": {
+          "name": "PromptCast_0.1.2_universal.dmg",
+          "sha256": "28b42bf0187efe076d76be86de1bc0bb230a584d0ea394f5e18dbed6e9dc2044"
+        },
+        "darwin-x86_64": {
+          "name": "PromptCast_0.1.2_universal.dmg",
+          "sha256": "28b42bf0187efe076d76be86de1bc0bb230a584d0ea394f5e18dbed6e9dc2044"
+        },
+        "windows-x86_64": {
+          "name": "PromptCast_0.1.2_x64-setup.exe",
+          "sha256": "38af93eb69fd2a80a5a6a151204ee36572857f5002cf31194ea8bf26650e127b"
+        }
+      }
+    },
+    {
       "version": "0.1.1",
       "title": "剪贴板性能与滚动体验优化",
       "notes": "- 剪贴板历史改为仅渲染可视区域附近的条目，图片缩略图按需加载，减少大量记录时的界面开销。\n- 复制新内容或重新唤起剪贴板时回到顶部，默认选中最新一条，方便快速查找和粘贴。\n- 普通列表刷新保留浏览位置与勾选状态，键盘上下导航可定位尚未渲染的历史条目。\n- 列表布局适配字号和窗口大小变化，macOS 与 Windows 使用同一套优化逻辑。\n\n本次更新不修改已有剪贴板内容、图片或数据库结构。",
